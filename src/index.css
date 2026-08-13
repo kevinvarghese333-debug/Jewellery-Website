@@ -1,0 +1,108 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --color-surface: #fff8f7;
+    --color-surface-dim: #e4d7d8;
+    --color-surface-bright: #fff8f7;
+    --color-surface-container-lowest: #ffffff;
+    --color-surface-container-low: #fef0f1;
+    --color-surface-container: #f8ebec;
+    --color-surface-container-high: #f2e5e6;
+    --color-surface-container-highest: #eddfe0;
+    --color-on-surface: #201a1b;
+    --color-on-surface-variant: #524346;
+    --color-outline: #847375;
+    --color-outline-variant: #d7c1c4;
+    --color-primary: #370617;
+    --color-kavitha-maroon: #6B1F2A;
+    --color-deep-garnet: #4A1420;
+    --color-heritage-gold: #B88A44;
+    --color-bright-gold: #D4AF6A;
+    --color-ink: #1C1410;
+    --color-cream: #FAF6F0;
+    --color-stone: #F0EBE4;
+    --color-slate: #5A5048;
+    --color-on-primary: #ffffff;
+    --color-primary-container: #521b2b;
+    --color-secondary: #7e5714;
+    --color-error: #ba1a1a;
+  }
+
+  body {
+    background-color: var(--color-surface);
+    color: var(--color-on-surface);
+    font-family: 'Barlow', 'Inter', sans-serif;
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 5L5 30l25 25 25-25z' fill='%23b88a44' fill-opacity='0.04' fill-rule='evenodd'/%3E%3C/svg%3E");
+  }
+
+  h1, h2, .font-display {
+    font-family: 'Playfair Display', serif;
+  }
+
+  h3, h4, .font-brand {
+    font-family: 'Manrope', 'Playfair Display', sans-serif;
+  }
+
+  .font-data {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+.shadow-refinement {
+  box-shadow: 0 4px 20px rgba(82, 27, 43, 0.05);
+}
+
+/* Jaali Pattern Overlay */
+.bg-jaali-pattern {
+  background-image: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23b88a44' fill-opacity='0.06' fill-rule='evenodd'%3E%3Cpath d='M20 0L40 20L20 40L0 20zM20 8L32 20L20 32L8 20z'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+/* Certificate Frame Styling */
+.certificate-frame {
+  position: relative;
+  border: 1px solid rgba(184, 138, 68, 0.3);
+}
+.certificate-frame::before {
+  content: '';
+  position: absolute;
+  top: 4px; left: 4px; right: 4px; bottom: 4px;
+  border: 1px dashed rgba(184, 138, 68, 0.25);
+  pointer-events: none;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #fff8f7;
+}
+::-webkit-scrollbar-thumb {
+  background: #d7c1c4;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #847375;
+}
+
+/* Material Symbols Outlined helper */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+.material-symbols-outlined[data-weight="fill"] {
+  font-variation-settings: 'FILL' 1;
+}
+
+/* Shimmer animation for Skeleton Loader */
+@keyframes shimmer {
+  0% { background-position: -1000px 0; }
+  100% { background-position: 1000px 0; }
+}
+.skeleton {
+  background: #eddfe0;
+  background-image: linear-gradient(to right, #eddfe0 0%, #f8ebec 20%, #eddfe0 40%, #eddfe0 100%);
+  background-repeat: no-repeat;
+  background-size: 1000px 100%;
+  animation: shimmer 2s infinite linear forwards;
+}
