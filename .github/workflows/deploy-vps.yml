@@ -1,0 +1,49 @@
+name: Deploy to Hostinger VPS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hostinger-production-deployment
+  cancel-in-progress: false
+
+env:
+  APP_DIRECTORY: /opt/kavitha-jewellery
+
+jobs:
+  deploy:
+    if: vars.ENABLE_VPS_DEPLOY == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Configure SSH
+        env:
+          VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+
+      - name: Rebuild and restart the website
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "
+            set -euo pipefail
+            cd '$APP_DIRECTORY'
+            git pull --ff-only origin main
+            docker compose build --pull jewellery-website
+            docker compose up -d jewellery-website
+            docker compose ps --status running --services | grep -qx jewellery-website
+            curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8080/healthz > /dev/null
+          "
