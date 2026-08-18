@@ -1,4 +1,4 @@
-name: Deploy to Hostinger VPS
+name: Deploy static site to Hostinger VPS
 
 on:
   push:
@@ -10,11 +10,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: hostinger-production-deployment
+  group: kavitha-jewellery-production-deployment
   cancel-in-progress: false
 
 env:
-  APP_DIRECTORY: /opt/kavitha-jewellery
+  DEPLOY_DIRECTORY: /var/www/kavitha-jewellery
+  WEBSITE_CONTAINER: kavitha-jewellery-website-1
+  WEBSITE_PORT: "8088"
 
 jobs:
   deploy:
@@ -23,6 +25,22 @@ jobs:
     timeout-minutes: 15
 
     steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Build production site
+        run: |
+          npm ci
+          npm run lint
+          npm run build
+          test -s dist/index.html
+
       - name: Configure SSH
         env:
           VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
@@ -33,17 +51,37 @@ jobs:
           printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
 
-      - name: Rebuild and restart the website
+      - name: Verify deployment target
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
         run: |
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "
             set -euo pipefail
-            cd '$APP_DIRECTORY'
-            git pull --ff-only origin main
-            docker compose build --pull jewellery-website
-            docker compose up -d jewellery-website
-            docker compose ps --status running --services | grep -qx jewellery-website
-            curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8080/healthz > /dev/null
+            test -d '$DEPLOY_DIRECTORY'
+            test -w '$DEPLOY_DIRECTORY'
+            sudo /usr/bin/docker inspect --format '{{.State.Running}}' '$WEBSITE_CONTAINER' | grep -qx true
+          "
+
+      - name: Upload production files
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          rsync -az --delete-delay --delay-updates --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+            -e 'ssh -o BatchMode=yes -o StrictHostKeyChecking=yes' \
+            dist/ "$VPS_USER@$VPS_HOST:$DEPLOY_DIRECTORY/"
+
+      - name: Verify deployed website
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "
+            set -euo pipefail
+            test -s '$DEPLOY_DIRECTORY/index.html'
+            find '$DEPLOY_DIRECTORY/assets' -type f -name '*.js' -print -quit | grep -q .
+            sudo /usr/bin/docker inspect --format '{{.State.Running}}' '$WEBSITE_CONTAINER' | grep -qx true
+            curl --fail --silent --show-error --max-time 10 http://127.0.0.1:$WEBSITE_PORT/ > /dev/null
+            curl --fail --silent --show-error --max-time 10 http://127.0.0.1:$WEBSITE_PORT/spa-routing-check > /dev/null
           "

@@ -1,194 +1,146 @@
-# Docker deployment on a Hostinger VPS
+# Hostinger VPS deployment
 
-## Application and architecture
+## Production architecture
 
-This repository builds to static HTML, CSS, and JavaScript. It has no backend server, database, API routes, or required runtime environment variables. The current cart and gold-rate settings are stored in the visitor's browser. The product data is bundled with the application; some images, fonts, maps, and WhatsApp links load from third-party services.
-
-The `express`, `dotenv`, and `@google/genai` packages, plus the variables in `.env.example`, are not referenced by the application. They do not need to be configured for this deployment. Do not add API keys to the VPS, Git repository, Docker image, or `VITE_*` variables.
-
-Production traffic flows as follows:
+The application is a frontend-only React/Vite/TypeScript site. GitHub Actions builds the static production bundle and deploys only the resulting `dist/` files. It does not run an application server, database, Docker build, or Docker Compose command on the VPS.
 
 ```text
-Internet (HTTPS) -> host Nginx -> 127.0.0.1:8080 -> Docker Nginx -> Vite SPA
+Existing Traefik routing -> kavitha-jewellery-website-1 (nginx:alpine, port 8088) -> /var/www/kavitha-jewellery (read-only mount)
 ```
 
-The Docker container serves the static Vite `dist` output. Its Nginx configuration has a `/healthz` endpoint and falls back to `index.html`, so direct links and browser refreshes work with client-side routing.
+The existing website container mounts `/var/www/kavitha-jewellery` at `/usr/share/nginx/html:ro`. GitHub Actions updates that mounted directory in place; Nginx serves the new static files without restarting or recreating the container. The existing Traefik and Hermes Workspace containers are outside this deployment's scope and are never modified.
 
-## VPS prerequisites
+The existing container's Nginx configuration must implement SPA fallback, equivalent to `try_files $uri $uri/ /index.html;`. The workflow verifies this after upload with a request to `/spa-routing-check`; it fails if that request does not return the Vite app. This check is read-only and does not alter the container configuration.
 
-These commands assume an Ubuntu Hostinger KVM VPS. Update the operating system first, then install Docker Engine with the Compose plugin and Nginx. Follow Docker's official installation instructions for a Debian or other operating-system version.
+The repository's `Dockerfile`, `docker-compose.yml`, and `nginx.conf` remain available for standalone Docker usage, but they are not used by this VPS deployment. Do not run the repository's Compose file on this VPS: its existing Compose project is `/docker/kavitha-jewellery`, and that stack must remain unchanged.
 
-```sh
-sudo apt update
-sudo apt upgrade -y
-sudo apt install -y ca-certificates curl git nginx
-```
+## Existing VPS configuration
 
-Install Docker Engine and the Docker Compose plugin:
-
-```sh
-sudo install -m 0755 -d /etc/apt/keyrings
-sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-sudo chmod a+r /etc/apt/keyrings/docker.asc
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-sudo apt update
-sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-docker --version
-docker compose version
-```
-
-Allow only web traffic through the VPS firewall. The application container itself stays private on `127.0.0.1:8080`.
-
-```sh
-sudo ufw allow OpenSSH
-sudo ufw allow 'Nginx Full'
-sudo ufw enable
-```
-
-## Deployment user and directory
-
-Create a dedicated, non-root deployment user and give it access to Docker. Log out and back in after adding the user to the Docker group before using Docker as that user.
-
-```sh
-sudo adduser deploy
-sudo usermod -aG docker deploy
-sudo install -d -o deploy -g deploy /opt/kavitha-jewellery
-```
-
-The GitHub Actions workflow and the commands below use `/opt/kavitha-jewellery`. Do not place production configuration or secrets in this repository directory.
-
-## Clone and first start
-
-Become the deployment user, clone the repository into the expected directory, then build and start only this Compose service:
-
-```sh
-sudo -iu deploy
-git clone https://github.com/kevinvarghese333-debug/Jewellery-Website.git /opt/kavitha-jewellery
-cd /opt/kavitha-jewellery
-docker compose build --pull
-docker compose up -d jewellery-website
-```
-
-Check the running container, application logs, and private health endpoint:
-
-```sh
-docker compose ps
-docker compose logs --tail=100 jewellery-website
-curl -I http://127.0.0.1:8080/healthz
-```
-
-To use a different local port, set `HOST_PORT` when starting the service, for example `HOST_PORT=8081 docker compose up -d --build jewellery-website`. Update the host Nginx proxy target to match.
-
-## Host Nginx, domain, and HTTPS
-
-Create `/etc/nginx/sites-available/jewellery-website` as root, replacing `example.com` with the real domain. The host Nginx server is the only public-facing service and forwards requests to the private Docker port.
-
-```nginx
-server {
-    listen 80;
-    listen [::]:80;
-    server_name example.com www.example.com;
-
-    location / {
-        proxy_pass http://127.0.0.1:8080;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-Enable the site, test Nginx, and reload it:
-
-```sh
-sudo ln -s /etc/nginx/sites-available/jewellery-website /etc/nginx/sites-enabled/jewellery-website
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
-After the domain's DNS records point to the VPS, install Certbot and request a certificate:
-
-```sh
-sudo apt install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d example.com -d www.example.com
-sudo systemctl status certbot.timer
-```
-
-Do not expose port `8080` in the VPS firewall. Do not modify Vercel, DNS, or other VPS applications while completing this setup.
-
-## GitHub Actions automatic deployment
-
-The workflow at `.github/workflows/deploy-vps.yml` is triggered after a push to `main` or when started manually, but it will deploy only after the repository Actions variable `ENABLE_VPS_DEPLOY` is set to `true`. This prevents the initial workflow commit from deploying before the VPS is ready. It connects over SSH, runs `git pull --ff-only`, rebuilds and restarts only the `jewellery-website` Compose service, confirms it is running, and checks `/healthz`. It does not interact with Vercel, Hermes Workspace, or unrelated Docker containers.
-
-Create the following GitHub Actions repository secrets before enabling automatic deployment:
-
-| Secret | Value |
+| Item | Value |
 | --- | --- |
-| `VPS_HOST` | VPS public IP address or hostname. |
-| `VPS_USER` | `deploy`. |
-| `VPS_SSH_PRIVATE_KEY` | Private half of the dedicated Ed25519 deployment key. |
-| `VPS_SSH_KNOWN_HOSTS` | The VPS SSH host-key line, generated with `ssh-keyscan -H YOUR_VPS_IP` from a trusted machine. |
+| Operating system | Ubuntu 24.04.4 |
+| Docker Compose | v5.4.0 |
+| Existing web container | `kavitha-jewellery-website-1` |
+| Container image | `nginx:alpine` |
+| Existing host port | `8088` to container port `80` |
+| Static-file directory | `/var/www/kavitha-jewellery` |
+| Existing Compose directory | `/docker/kavitha-jewellery` |
+| Existing Docker network | `kavitha-jewellery_default` |
 
-Create the repository Actions variable `ENABLE_VPS_DEPLOY` with the value `true` only after completing the manual VPS deployment and validating the site. This variable is not a secret.
+Do not install host Nginx, expose ports, modify Traefik, modify DNS/HIOX, or run `docker compose up`, `docker compose down`, `docker restart`, or `docker rm` as part of this deployment.
 
-Create a dedicated key pair on a trusted administrator computer. Do not create it inside the repository and never copy the private key to the VPS.
+## One-time VPS preparation
+
+Run these commands as an administrator on the VPS. They create a dedicated deployment user and grant it write access only to the Kavitha static-site directory.
+
+```sh
+sudo adduser --disabled-password --gecos "" kavitha-deploy
+sudo chown -R kavitha-deploy:kavitha-deploy /var/www/kavitha-jewellery
+sudo find /var/www/kavitha-jewellery -type d -exec chmod 755 {} \;
+sudo find /var/www/kavitha-jewellery -type f -exec chmod 644 {} \;
+```
+
+The workflow checks the existing Nginx container with `docker inspect` but never changes it. Grant the deployment user access only to that read-only command by creating `/etc/sudoers.d/kavitha-deploy` with this exact content:
+
+```sudoers
+kavitha-deploy ALL=(root) NOPASSWD: /usr/bin/docker inspect --format * kavitha-jewellery-website-1
+```
+
+Validate the sudoers file before relying on it:
+
+```sh
+sudo visudo -cf /etc/sudoers.d/kavitha-deploy
+sudo -iu kavitha-deploy sudo /usr/bin/docker inspect --format '{{.State.Running}}' kavitha-jewellery-website-1
+```
+
+## SSH deployment key
+
+Create a dedicated Ed25519 key pair on a trusted administrator computer. Do not create it in this repository and never copy its private key to the VPS.
 
 ```sh
 ssh-keygen -t ed25519 -f ./github-actions-kavitha -C github-actions-kavitha
 ```
 
-Install the public key for the deployment user on the VPS, then lock down the SSH permissions:
+Install the public key on the VPS for `kavitha-deploy`:
 
 ```sh
-sudo -iu deploy mkdir -p /home/deploy/.ssh
-sudo -iu deploy chmod 700 /home/deploy/.ssh
-sudo -iu deploy sh -c 'cat >> /home/deploy/.ssh/authorized_keys'
-sudo -iu deploy chmod 600 /home/deploy/.ssh/authorized_keys
+sudo -iu kavitha-deploy mkdir -p /home/kavitha-deploy/.ssh
+sudo -iu kavitha-deploy chmod 700 /home/kavitha-deploy/.ssh
+sudo -iu kavitha-deploy sh -c 'cat >> /home/kavitha-deploy/.ssh/authorized_keys'
+sudo -iu kavitha-deploy chmod 600 /home/kavitha-deploy/.ssh/authorized_keys
 ```
 
-When the third command waits for input, paste the content of `github-actions-kavitha.pub`, press Enter, then press Ctrl+D. Copy the private key file into the `VPS_SSH_PRIVATE_KEY` GitHub secret and the `ssh-keyscan` output into `VPS_SSH_KNOWN_HOSTS`.
-
-## Manual updates and rollback
-
-For a manual update, run as the `deploy` user:
+When the third command waits for input, paste the contents of `github-actions-kavitha.pub`, press Enter, then press Ctrl+D. Test the connection before configuring GitHub Actions:
 
 ```sh
-cd /opt/kavitha-jewellery
-git pull --ff-only origin main
-docker compose build --pull
-docker compose up -d jewellery-website
-docker compose ps
+ssh -i ./github-actions-kavitha kavitha-deploy@YOUR_VPS_IP
 ```
 
-To roll back to a previously known commit, replace `COMMIT_SHA` with its commit ID, rebuild, and restart the same service:
+## GitHub Actions setup
+
+Add these repository Actions secrets. They are the only SSH credentials used by the workflow.
+
+| Secret | Value |
+| --- | --- |
+| `VPS_HOST` | The VPS public IP address or hostname. |
+| `VPS_USER` | `kavitha-deploy`. |
+| `VPS_SSH_PRIVATE_KEY` | The private content of the dedicated Ed25519 key. |
+| `VPS_SSH_KNOWN_HOSTS` | The VPS host key produced by `ssh-keyscan -H YOUR_VPS_IP` from a trusted machine. |
+
+The workflow is deliberately disabled until you create the repository Actions variable `ENABLE_VPS_DEPLOY` with the value `true`. Do this only after completing the one-time VPS preparation and manually verifying the website. Until then, pushes to `main` do not deploy anything.
+
+## Deployment workflow
+
+`.github/workflows/deploy-vps.yml` runs on `main` pushes and manual dispatches, subject to the opt-in variable. It performs these steps:
+
+1. Runs `npm ci`, `npm run lint`, and `npm run build` in GitHub Actions.
+2. Confirms `dist/index.html` exists.
+3. Connects as the dedicated deployment user and verifies that the target directory is writable and `kavitha-jewellery-website-1` is already running.
+4. Uses `rsync` to copy only `dist/` to `/var/www/kavitha-jewellery/`. `--delay-updates` and `--delete-delay` reduce the chance of a partially updated asset set.
+5. Verifies the deployed `index.html`, JavaScript assets, running container, normal local website response, and SPA fallback response on port `8088`.
+
+The workflow does not connect to Vercel, modify Traefik, restart containers, use `/docker/kavitha-jewellery`, or interact with Hermes Workspace.
+
+## Manual deployment and checks
+
+For a first manual update from a trusted computer, run the build locally and use the same restricted deployment user:
 
 ```sh
-cd /opt/kavitha-jewellery
+npm ci
+npm run lint
+npm run build
+rsync -az --delete-delay --delay-updates dist/ kavitha-deploy@YOUR_VPS_IP:/var/www/kavitha-jewellery/
+```
+
+Then verify safely on the VPS:
+
+```sh
+test -s /var/www/kavitha-jewellery/index.html
+sudo -iu kavitha-deploy sudo /usr/bin/docker inspect --format '{{.State.Running}}' kavitha-jewellery-website-1
+curl -I http://127.0.0.1:8088/
+```
+
+## Rollback
+
+GitHub Actions deploys static files, so keep a local copy of a known-good `dist/` directory or rebuild a previous Git commit. Then upload that previous bundle with the same `rsync` command. This does not require or permit container restarts.
+
+```sh
 git checkout COMMIT_SHA
-docker compose up -d --build jewellery-website
-curl -I http://127.0.0.1:8080/healthz
-```
-
-Before the next automatic deployment, return the server checkout to `main`:
-
-```sh
+npm ci
+npm run build
+rsync -az --delete-delay --delay-updates dist/ kavitha-deploy@YOUR_VPS_IP:/var/www/kavitha-jewellery/
 git checkout main
-git pull --ff-only origin main
 ```
 
 ## Troubleshooting
 
+Run these read-only checks on the VPS:
+
 ```sh
-docker compose ps
-docker compose logs --tail=200 jewellery-website
-docker compose exec jewellery-website nginx -t
-curl -v http://127.0.0.1:8080/healthz
-sudo nginx -t
-sudo systemctl status nginx
-sudo systemctl reload nginx
-git status
+ls -lah /var/www/kavitha-jewellery
+sudo -iu kavitha-deploy sudo /usr/bin/docker inspect --format '{{.State.Running}}' kavitha-jewellery-website-1
+curl -v http://127.0.0.1:8088/
+docker compose -f /docker/kavitha-jewellery/docker-compose.yml ps
 ```
 
-If GitHub Actions fails, check its job log first. On the VPS, confirm the repository is at `/opt/kavitha-jewellery`, the `deploy` user belongs to the `docker` group, the public key is in `/home/deploy/.ssh/authorized_keys`, and the `VPS_SSH_KNOWN_HOSTS` secret matches the VPS host key.
+If a GitHub Actions deployment fails, no container is restarted. Check whether the deployment user can write `/var/www/kavitha-jewellery`, whether its SSH key is installed, whether the `VPS_SSH_KNOWN_HOSTS` secret matches the VPS host key, and whether the website container was already running before the upload.
