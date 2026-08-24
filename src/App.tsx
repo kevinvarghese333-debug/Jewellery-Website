@@ -25,15 +25,29 @@ import { getStoredUserProfile } from './data/userSession';
 
 export function App() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(getStoredUserProfile());
-  const [activeView, setActiveView] = useState<ActiveView>(() => {
+  const getInitialView = (): ActiveView => {
     if (typeof window !== 'undefined') {
+      const path = window.location.pathname.toLowerCase().replace(/\/$/, '');
+      const hash = window.location.hash.toLowerCase().replace(/^#\/?/, '');
       const params = new URLSearchParams(window.location.search);
-      if (params.get('source') || params.get('campaign')) {
+
+      // Check /admin or #admin or ?view=admin or ?admin
+      if (path === '/admin' || hash === 'admin' || params.get('view') === 'admin' || params.has('admin')) {
+        return 'campaign-admin';
+      }
+      // Check /staff or #staff or ?view=staff
+      if (path === '/staff' || hash === 'staff' || params.get('view') === 'staff' || params.has('staff')) {
+        return 'staff-redemption';
+      }
+      // Check /onam or #onam or ?campaign or ?source
+      if (path === '/onam' || hash === 'onam' || params.get('source') || params.get('campaign') || params.get('view') === 'onam') {
         return 'onam-campaign';
       }
     }
     return 'home';
-  });
+  };
+
+  const [activeView, setActiveView] = useState<ActiveView>(getInitialView);
 
   const [selectedProduct, setSelectedProduct] = useState<Product>(PRODUCTS[0]);
   
@@ -133,6 +147,19 @@ export function App() {
     return () => unsubscribe();
   }, []);
 
+  // Listen to browser navigation (back/forward or hash change)
+  useEffect(() => {
+    const handleUrlChange = () => {
+      setActiveView(getInitialView());
+    };
+    window.addEventListener('popstate', handleUrlChange);
+    window.addEventListener('hashchange', handleUrlChange);
+    return () => {
+      window.removeEventListener('popstate', handleUrlChange);
+      window.removeEventListener('hashchange', handleUrlChange);
+    };
+  }, []);
+
   const setGoldRate = (rate: number) => {
     setGoldRateState(rate);
     try {
@@ -145,6 +172,17 @@ export function App() {
   // Navigation handler
   const handleNavigate = (view: ActiveView) => {
     setActiveView(view);
+    if (typeof window !== 'undefined') {
+      if (view === 'campaign-admin') {
+        window.history.pushState(null, '', '#admin');
+      } else if (view === 'staff-redemption') {
+        window.history.pushState(null, '', '#staff');
+      } else if (view === 'onam-campaign') {
+        window.history.pushState(null, '', '#onam');
+      } else if (view === 'home') {
+        window.history.pushState(null, '', window.location.pathname);
+      }
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -230,17 +268,19 @@ export function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#fff8f7] text-[#201a1b] selection:bg-[#370617] selection:text-[#FAF6F0]">
-      {/* Top Header & Sticky Navigation */}
-      <HeaderNav
-        activeView={activeView}
-        setActiveView={handleNavigate}
-        cartCount={cart.reduce((sum, item) => sum + item.quantity, 0)}
-        cartTotal={cartTotal}
-        wishlistCount={wishlistIds.length}
-        goldRate={goldRate}
-        onOpenSearch={() => setIsSearchOpen(true)}
-        onOpenGoldCalc={() => setIsGoldCalcOpen(true)}
-      />
+      {/* Top Header & Sticky Navigation (Hidden on standalone admin portal) */}
+      {activeView !== 'campaign-admin' && (
+        <HeaderNav
+          activeView={activeView}
+          setActiveView={handleNavigate}
+          cartCount={cart.reduce((sum, item) => sum + item.quantity, 0)}
+          cartTotal={cartTotal}
+          wishlistCount={wishlistIds.length}
+          goldRate={goldRate}
+          onOpenSearch={() => setIsSearchOpen(true)}
+          onOpenGoldCalc={() => setIsGoldCalcOpen(true)}
+        />
+      )}
 
       {/* Main View Container */}
       <main className={`flex-grow w-full ${
@@ -321,8 +361,10 @@ export function App() {
         )}
       </main>
 
-      {/* Footer */}
-      <Footer onNavigate={handleNavigate} />
+      {/* Footer (Hidden on standalone admin portal) */}
+      {activeView !== 'campaign-admin' && (
+        <Footer onNavigate={handleNavigate} />
+      )}
 
       {/* Global Modals */}
       <GoldRateCalculatorModal
