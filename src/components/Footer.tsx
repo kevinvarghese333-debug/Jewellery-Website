@@ -65,6 +65,16 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
           <button onClick={() => onNavigate?.('campaign-admin')} className="text-left font-sans text-xs text-[#524346] hover:text-[#370617] hover:underline transition-all">
             Campaign Admin & Analytics
           </button>
+          <a
+            href="/Kavitha_Jewellery_Developer_Handover.pdf"
+            download="Kavitha_Jewellery_Developer_Handover.pdf"
+            target="_blank"
+            rel="noreferrer"
+            className="text-left font-sans text-xs text-[#B88A44] font-semibold hover:underline transition-all flex items-center gap-1"
+          >
+            <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
+            <span>Developer Handover Spec (PDF)</span>
+          </a>
           <button onClick={() => onNavigate?.('catalog')} className="text-left font-sans text-xs text-[#524346] hover:text-[#370617] hover:underline transition-all">
             Gold Necklaces (Haaram & Chokers)
           </button>

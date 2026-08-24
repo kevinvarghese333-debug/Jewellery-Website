@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { ActiveView, OnamCoupon } from '../types';
+import { ActiveView, OnamCoupon, UserProfile } from '../types';
 import { generateOnamCoupon, getCouponByMobile, calculateEffectiveMakingChargeDiscount } from '../data/campaignData';
 import { TermsModal } from '../components/TermsModal';
+import { sendDltSmsOtp, getDltConfig } from '../data/dltSmsConfig';
+import { getStoredUserProfile, saveUserProfile, clearUserProfile } from '../data/userSession';
+import { UserLoginModal } from '../components/UserLoginModal';
+import { Logo } from '../components/Logo';
 
 interface OnamCampaignViewProps {
   onNavigate: (view: ActiveView) => void;
@@ -10,7 +14,12 @@ interface OnamCampaignViewProps {
 export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }) => {
   const [sourceParam, setSourceParam] = useState<string>('QR Code');
   const [isTermsOpen, setIsTermsOpen] = useState<boolean>(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
   
+  // User Session State
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(getStoredUserProfile());
+  const [existingUserCoupon, setExistingUserCoupon] = useState<OnamCoupon | null>(null);
+
   // Interactive making charge calculator state on voucher screen
   const [testMakingCharge, setTestMakingCharge] = useState<number>(10000);
   
@@ -20,9 +29,9 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
   >('hero');
 
   // Input states
-  const [userName, setUserName] = useState<string>('');
-  const [userEmail, setUserEmail] = useState<string>('');
-  const [mobileNumber, setMobileNumber] = useState<string>('');
+  const [userName, setUserName] = useState<string>(currentUser?.name || '');
+  const [userEmail, setUserEmail] = useState<string>(currentUser?.email || '');
+  const [mobileNumber, setMobileNumber] = useState<string>(currentUser?.mobile || '');
   const [agreedTerms, setAgreedTerms] = useState<boolean>(false);
   const [otpDigits, setOtpDigits] = useState<string[]>(['', '', '', '', '', '']);
   const [otpError, setOtpError] = useState<string>('');
@@ -35,6 +44,46 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
   // Result state
   const [activeCoupon, setActiveCoupon] = useState<OnamCoupon | null>(null);
   const [copiedLink, setCopiedLink] = useState<boolean>(false);
+
+  // Sync user state on load & check for existing coupon
+  useEffect(() => {
+    const user = getStoredUserProfile();
+    setCurrentUser(user);
+    if (user) {
+      if (user.name) setUserName(user.name);
+      if (user.email) setUserEmail(user.email);
+      if (user.mobile) {
+        setMobileNumber(user.mobile);
+        const existing = getCouponByMobile(user.mobile);
+        if (existing) {
+          setExistingUserCoupon(existing);
+        }
+      }
+    }
+  }, []);
+
+  // Listen to auth changes from Header or Modals
+  useEffect(() => {
+    const handleAuthChange = (e: any) => {
+      const user = e.detail || getStoredUserProfile();
+      setCurrentUser(user);
+      if (user) {
+        if (user.name) setUserName(user.name);
+        if (user.email) setUserEmail(user.email);
+        if (user.mobile) {
+          setMobileNumber(user.mobile);
+          const existing = getCouponByMobile(user.mobile);
+          if (existing) {
+            setExistingUserCoupon(existing);
+          }
+        }
+      } else {
+        setExistingUserCoupon(null);
+      }
+    };
+    window.addEventListener('kavitha_user_auth_changed', handleAuthChange);
+    return () => window.removeEventListener('kavitha_user_auth_changed', handleAuthChange);
+  }, []);
 
   // Read URL query parameter ?source=... if present
   useEffect(() => {
@@ -118,7 +167,7 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
   };
 
   // Submit Mobile -> Go to OTP
-  const handleMobileSubmit = (e: React.FormEvent) => {
+  const handleMobileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userName.trim()) {
       alert('Please enter your full name.');
@@ -128,7 +177,8 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
       alert('Please enter a valid email address.');
       return;
     }
-    if (mobileNumber.length < 10) {
+    const cleanMobile = mobileNumber.replace(/\D/g, '');
+    if (cleanMobile.length < 10) {
       alert('Please enter a valid 10-digit mobile number.');
       return;
     }
@@ -141,9 +191,13 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
     setOtpDigits(['', '', '', '', '', '']);
     setOtpError('');
     setFlowState('otp_verify');
+
+    // Trigger BSNL DLT SMS OTP dispatch
+    const testOtp = '123456';
+    await sendDltSmsOtp(cleanMobile, testOtp);
   };
 
-  // Verify OTP -> Trigger 3.2s Raffle Drum animation -> Display coupon
+  // Verify OTP -> Save user profile -> Trigger 3.2s Raffle Drum animation -> Display coupon
   const handleVerifyOtp = () => {
     const codeStr = otpDigits.join('');
     if (codeStr.length < 6) {
@@ -151,24 +205,47 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
       return;
     }
 
+    const cleanMobile = mobileNumber.replace(/\D/g, '').slice(-10);
+
+    // Save and log in user profile
+    const profile = saveUserProfile({
+      name: userName.trim(),
+      email: userEmail.trim(),
+      mobile: cleanMobile,
+      isLoggedIn: true,
+      loyaltyPoints: 3955,
+    });
+    setCurrentUser(profile);
+
     setOtpError('');
     setFlowState('animating_reveal');
 
     // Generate or retrieve coupon with Name and Email
-    const coupon = generateOnamCoupon(mobileNumber, sourceParam, userName, userEmail);
+    const coupon = generateOnamCoupon(cleanMobile, sourceParam, userName.trim(), userEmail.trim());
 
     // 3.2s premium raffle drum reveal delay
     setTimeout(() => {
       setActiveCoupon(coupon);
+      setExistingUserCoupon(coupon);
       setFlowState('coupon_result');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }, 3200);
   };
 
+  // View existing active coupon directly
+  const handleViewExistingCoupon = () => {
+    if (existingUserCoupon) {
+      setActiveCoupon(existingUserCoupon);
+      setFlowState('coupon_result');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
   // Existing Coupon Lookup
   const handleLookupSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (mobileNumber.length < 10) {
+    const clean = mobileNumber.replace(/\D/g, '');
+    if (clean.length < 10) {
       alert('Please enter a valid 10-digit mobile number.');
       return;
     }
@@ -184,16 +261,28 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
       return;
     }
 
-    const found = getCouponByMobile(mobileNumber);
+    const clean = mobileNumber.replace(/\D/g, '').slice(-10);
+    const found = getCouponByMobile(clean);
     if (!found) {
       alert('No existing Onam surprise found for this mobile number. You can generate a new one now!');
       setFlowState('mobile_input');
       return;
     }
 
+    // Save user session
+    const profile = saveUserProfile({
+      name: found.userName || `Guest User (${clean.slice(-4)})`,
+      email: found.userEmail || '',
+      mobile: clean,
+      isLoggedIn: true,
+      loyaltyPoints: 3955,
+    });
+    setCurrentUser(profile);
+
     setFlowState('animating_reveal');
     setTimeout(() => {
       setActiveCoupon(found);
+      setExistingUserCoupon(found);
       setFlowState('coupon_result');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }, 1500);
@@ -207,46 +296,84 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
     setTimeout(() => setCopiedLink(false), 3000);
   };
 
+  const handleLogout = () => {
+    clearUserProfile();
+    setCurrentUser(null);
+    setExistingUserCoupon(null);
+    setUserName('');
+    setUserEmail('');
+    setMobileNumber('');
+    setFlowState('hero');
+  };
+
   return (
-    <div className="bg-[#070A0D] text-[#ECEAE2] min-h-screen font-sans -mx-4 md:-mx-12 -mt-6 pb-20 selection:bg-[#C7E24E] selection:text-[#070A0D]">
+    <div className="bg-[#070A0D] text-[#ECEAE2] min-h-screen font-sans w-full pb-20 selection:bg-[#C7E24E] selection:text-[#070A0D]">
       {/* Kasavu / Heritage Ribbon Accent Bar */}
       <div className="h-1.5 bg-gradient-to-r from-[#B88A44] via-[#C7E24E] to-[#B88A44] w-full" />
 
       {/* Top Header Banner */}
-      <div className="bg-[#20221C] border-b border-[#4E4C4B]/40 px-4 md:px-12 py-3 flex justify-between items-center text-xs font-sans">
-        <div className="flex items-center gap-2 text-[#ECEAE2]/80">
-          <span className="w-2 h-2 rounded-full bg-[#C7E24E] animate-ping" />
-          <span className="font-medium tracking-wide">KAVITHA JEWELLERY • ONAM FESTIVE SURPRISE 2026</span>
-          {sourceParam && (
-            <span className="hidden sm:inline-block bg-[#070A0D] px-2 py-0.5 rounded text-[10px] text-[#C7E24E] border border-[#C7E24E]/30 uppercase tracking-widest font-data">
-              Source: {sourceParam}
-            </span>
-          )}
+      <div className="bg-[#20221C] border-b border-[#4E4C4B]/40 px-4 sm:px-6 md:px-12 py-3 flex flex-wrap justify-between items-center text-xs font-sans gap-3">
+        <div className="flex items-center gap-3">
+          <Logo variant="mark-only" size="sm" />
+          <div className="flex items-center gap-2 text-[#ECEAE2]/80">
+            <span className="w-2 h-2 rounded-full bg-[#C7E24E] animate-ping" />
+            <span className="font-medium tracking-wide">KAVITHA JEWELLERY • ONAM FESTIVE SURPRISE 2026</span>
+            {sourceParam && (
+              <span className="hidden sm:inline-block bg-[#070A0D] px-2 py-0.5 rounded text-[10px] text-[#C7E24E] border border-[#C7E24E]/30 uppercase tracking-widest font-data">
+                Source: {sourceParam}
+              </span>
+            )}
+          </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
+          {/* User Profile Status Badge */}
+          {currentUser ? (
+            <div className="flex items-center gap-2 bg-[#070A0D] px-3 py-1 rounded-full border border-[#C7E24E]/40 text-xs">
+              <span className="material-symbols-outlined text-[#C7E24E] text-sm">account_circle</span>
+              <span className="text-[#ECEAE2] font-semibold">
+                Hi, {currentUser.name ? currentUser.name.split(' ')[0] : 'User'}
+              </span>
+              <button
+                onClick={handleLogout}
+                className="text-[10px] text-[#ba1a1a] hover:underline ml-1 font-bold"
+                title="Log out session"
+              >
+                Log Out
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setIsLoginModalOpen(true)}
+              className="flex items-center gap-1 text-[11px] font-sans text-[#C7E24E] bg-[#070A0D] border border-[#C7E24E]/40 px-2.5 py-1 rounded-full hover:bg-[#C7E24E] hover:text-[#070A0D] transition-all font-semibold"
+            >
+              <span className="material-symbols-outlined text-xs">login</span>
+              <span>Sign In / My Vouchers</span>
+            </button>
+          )}
+
           <button
             onClick={() => setIsTermsOpen(true)}
             className="text-[11px] font-sans text-[#B88A44] hover:text-[#C7E24E] flex items-center gap-1 transition-colors font-semibold"
           >
             <span className="material-symbols-outlined text-xs">gavel</span>
-            <span>Terms & Conditions</span>
+            <span className="hidden sm:inline">Terms & Conditions</span>
           </button>
-          <span className="text-[#4E4C4B]">|</span>
+          <span className="text-[#4E4C4B] hidden sm:inline">|</span>
           <button
             onClick={() => onNavigate('staff-redemption')}
             className="text-[11px] font-sans text-[#ECEAE2]/70 hover:text-[#C7E24E] flex items-center gap-1 transition-colors"
           >
             <span className="material-symbols-outlined text-xs">storefront</span>
-            <span className="hidden sm:inline">Store Staff Portal</span>
+            <span className="hidden md:inline">Staff Portal</span>
           </button>
-          <span className="text-[#4E4C4B]">|</span>
+          <span className="text-[#4E4C4B] hidden md:inline">|</span>
           <button
             onClick={() => onNavigate('campaign-admin')}
             className="text-[11px] font-sans text-[#ECEAE2]/70 hover:text-[#C7E24E] flex items-center gap-1 transition-colors"
           >
             <span className="material-symbols-outlined text-xs">analytics</span>
-            <span className="hidden sm:inline">Campaign Admin</span>
+            <span className="hidden md:inline">Admin Panel</span>
           </button>
           <span className="text-[#4E4C4B]">|</span>
           <button
@@ -259,14 +386,14 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 md:px-8 pt-8 space-y-16">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 pt-8 space-y-16">
         {/* ========================================================= */}
         {/* HERO SECTION */}
         {/* ========================================================= */}
         {flowState === 'hero' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center pt-4">
             {/* Left Content (7 cols) */}
-            <div className="lg:col-span-7 space-y-6">
+            <div className="lg:col-span-7 space-y-6 text-left">
               <div className="inline-flex items-center gap-2 bg-[#20221C] border border-[#C7E24E]/30 text-[#C7E24E] px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-[0.2em]">
                 <span className="material-symbols-outlined text-sm">auto_awesome</span>
                 <span>Exclusive Kerala Onam Celebration</span>
@@ -280,8 +407,38 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
               </h1>
 
               <p className="font-sans text-base sm:text-lg text-[#ECEAE2]/80 font-light max-w-xl leading-relaxed">
-                This Onam, Kavitha Jewellery has a little surprise waiting for you.
+                This Onam, Kavitha Jewellery has a special surprise waiting for you.
               </p>
+
+              {/* Logged in Returning User Banner */}
+              {currentUser && existingUserCoupon && (
+                <div className="bg-[#20221C] p-4 rounded-2xl border-2 border-[#C7E24E] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold text-[#C7E24E] tracking-widest flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-sm">verified</span>
+                      <span>ACTIVE VOUCHER FOUND</span>
+                    </span>
+                    <span className="text-xs font-data text-[#ECEAE2] font-bold">
+                      Code: {existingUserCoupon.code}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center pt-1">
+                    <div>
+                      <p className="text-xs text-[#ECEAE2]/80">Welcome back, <strong>{currentUser.name}</strong>!</p>
+                      <p className="text-xl font-bold font-serif-display text-[#C7E24E]">
+                        ₹{existingUserCoupon.discountAmount.toLocaleString()} OFF
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleViewExistingCoupon}
+                      className="bg-[#C7E24E] hover:bg-[#b0cc3d] text-[#070A0D] px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all"
+                    >
+                      <span className="material-symbols-outlined text-sm">qr_code_2</span>
+                      <span>View Voucher Details</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Discount Range Spotlight Banner */}
               <div className="bg-[#20221C] p-6 rounded-2xl border border-[#B88A44]/40 relative overflow-hidden group shadow-2xl">
@@ -304,7 +461,7 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
                   className="w-full sm:w-auto bg-[#C7E24E] hover:bg-[#b0cc3d] text-[#070A0D] font-sans font-bold text-sm uppercase tracking-[0.18em] px-8 py-4 rounded-xl shadow-xl transition-all duration-300 transform hover:scale-[1.02] flex items-center justify-center gap-3"
                 >
                   <span className="material-symbols-outlined text-xl">card_giftcard</span>
-                  <span>REVEAL MY SURPRISE</span>
+                  <span>{existingUserCoupon ? 'REVEAL ANOTHER / SPIN AGAIN' : 'REVEAL MY SURPRISE'}</span>
                 </button>
 
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 text-xs font-sans text-[#ECEAE2]/60 pt-1">
@@ -592,6 +749,7 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
               </div>
 
               <div className="text-center space-y-2 border-b border-[#4E4C4B]/40 pb-6 pt-2">
+                <Logo variant="stacked" theme="dark" size="sm" className="mx-auto pb-1" />
                 <span className="text-xs uppercase tracking-[0.25em] text-[#B88A44] font-semibold block">
                   CONGRATULATIONS! YOUR ONAM SURPRISE IS
                 </span>
@@ -943,6 +1101,27 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
 
       {/* Official Terms & Conditions Modal */}
       <TermsModal isOpen={isTermsOpen} onClose={() => setIsTermsOpen(false)} />
+
+      {/* User Login / Profile Modal */}
+      <UserLoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+        onNavigate={onNavigate}
+        onUserChange={(u) => {
+          setCurrentUser(u);
+          if (u) {
+            if (u.name) setUserName(u.name);
+            if (u.email) setUserEmail(u.email);
+            if (u.mobile) {
+              setMobileNumber(u.mobile);
+              const found = getCouponByMobile(u.mobile);
+              setExistingUserCoupon(found || null);
+            }
+          } else {
+            setExistingUserCoupon(null);
+          }
+        }}
+      />
     </div>
   );
 };

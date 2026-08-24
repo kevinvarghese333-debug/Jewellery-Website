@@ -1,0 +1,64 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated customer profiles for Kavitha Jewellery",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "name": { "type": "string", "description": "Full customer name" },
+        "email": { "type": "string", "description": "Customer email address" },
+        "mobile": { "type": "string", "description": "Customer 10-digit mobile number" },
+        "city": { "type": "string", "description": "Customer city / location" },
+        "photoURL": { "type": "string", "description": "Profile picture URL" },
+        "authProvider": { "type": "string", "description": "Sign in method (google/password/phone)" },
+        "wishlist": { 
+          "type": "array", 
+          "items": { "type": "string" }, 
+          "description": "Array of saved product IDs" 
+        },
+        "loyaltyPoints": { "type": "number", "description": "Customer loyalty reward points" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "name", "email"]
+    },
+    "OrderRecord": {
+      "title": "OrderRecord",
+      "description": "Secured jewellery purchases and customer order history",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "orderNumber": { "type": "string" },
+        "userId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerEmail": { "type": "string" },
+        "customerPhone": { "type": "string" },
+        "items": { "type": "array" },
+        "goldValue": { "type": "number" },
+        "makingCharges": { "type": "number" },
+        "gst": { "type": "number" },
+        "discount": { "type": "number" },
+        "couponCode": { "type": "string" },
+        "grandTotal": { "type": "number" },
+        "totalWeightGrams": { "type": "number" },
+        "status": { "type": "string", "enum": ["CONFIRMED", "HALLMARK_VERIFIED", "INSURED_TRANSIT", "DELIVERED"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "estimatedDeliveryDate": { "type": "string" },
+        "trackingNumber": { "type": "string" },
+        "paymentMethod": { "type": "string" }
+      },
+      "required": ["orderNumber", "grandTotal", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile with synchronized wishlist and preferences"
+    },
+    "/orders/{orderId}": {
+      "schema": "OrderRecord",
+      "description": "Orders collection accessible by the placing user"
+    }
+  }
+}

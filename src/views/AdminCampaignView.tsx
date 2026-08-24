@@ -11,6 +11,9 @@ import {
   saveStoredCoupons
 } from '../data/campaignData';
 import { AdminLogin } from '../components/AdminLogin';
+import { getDltConfig, saveDltConfig, sendDltSmsOtp, BsnlDltConfig } from '../data/dltSmsConfig';
+import { generateAndDownloadClientSidePdf } from '../utils/generateHandoverPdf';
+import { Logo } from '../components/Logo';
 
 interface AdminCampaignViewProps {
   onNavigate: (view: ActiveView) => void;
@@ -68,10 +71,40 @@ export const AdminCampaignView: React.FC<AdminCampaignViewProps> = ({
   const [q5k, setQ5k] = useState<number>(poolConfig.max5k);
   const [q2500, setQ2500] = useState<number>(poolConfig.max2500);
 
+  // BSNL DLT SMS Configuration state
+  const [dltConfig, setDltConfig] = useState<BsnlDltConfig>(getDltConfig());
+  const [dltSaveNotice, setDltSaveNotice] = useState<string>('');
+  const [testPhone, setTestPhone] = useState<string>('');
+  const [testSmsNotice, setTestSmsNotice] = useState<string>('');
+  const [testSmsLoading, setTestSmsLoading] = useState<boolean>(false);
+
   // Table Filters & Search
   const [filterSource, setFilterSource] = useState<string>('ALL');
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  const handleSaveDltConfig = (e: React.FormEvent) => {
+    e.preventDefault();
+    saveDltConfig(dltConfig);
+    setDltSaveNotice('✓ BSNL DLT Portal parameters updated successfully!');
+    setTimeout(() => setDltSaveNotice(''), 4000);
+  };
+
+  const handleSendTestDltSms = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!testPhone || testPhone.length < 10) {
+      alert('Please enter a valid 10-digit mobile number.');
+      return;
+    }
+    setTestSmsLoading(true);
+    setTestSmsNotice('');
+    
+    // Generate test 6-digit OTP
+    const testOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    const res = await sendDltSmsOtp(testPhone, testOtp);
+    setTestSmsLoading(false);
+    setTestSmsNotice(res.message);
+  };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
@@ -204,14 +237,23 @@ export const AdminCampaignView: React.FC<AdminCampaignViewProps> = ({
 
       {/* Admin Header */}
       <div className="bg-[#20221C] border-b border-[#4E4C4B]/40 px-4 md:px-12 py-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-xs">
-        <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-[#C7E24E]">admin_panel_settings</span>
+        <div className="flex items-center gap-3">
+          <Logo variant="mark-only" size="sm" />
           <span className="font-bold tracking-wider uppercase text-[#C7E24E]">
             ADMIN DASHBOARD • KAVITHA JEWELLERY ONAM 2026
           </span>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => generateAndDownloadClientSidePdf()}
+            className="bg-[#B88A44] hover:bg-[#a67936] text-[#070A0D] px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow transition-all"
+            title="Download Developer Architecture & Database Documentation PDF"
+          >
+            <span className="material-symbols-outlined text-sm font-bold">picture_as_pdf</span>
+            <span>Developer Handover PDF</span>
+          </button>
+          <span className="text-[#4E4C4B]">|</span>
           <button
             onClick={() => onNavigate('staff-redemption')}
             className="text-xs text-[#ECEAE2]/80 hover:text-[#C7E24E] flex items-center gap-1 font-semibold"
@@ -466,6 +508,154 @@ export const AdminCampaignView: React.FC<AdminCampaignViewProps> = ({
                 </p>
               )}
             </form>
+          </div>
+          {/* BSNL DLT SMS Gateway & Header Portal */}
+          <div className="bg-[#20221C] p-6 rounded-2xl border border-[#C7E24E]/40 space-y-4 shadow-xl lg:col-span-3">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-[#4E4C4B]/40 pb-3">
+              <div>
+                <span className="text-[10px] uppercase tracking-widest text-[#C7E24E] font-bold">TELECOM DLT COMPLIANCE</span>
+                <h3 className="font-serif-display text-lg font-bold text-[#ECEAE2]">BSNL DLT SMS OTP Configuration & Testing</h3>
+              </div>
+              <span className="bg-[#C7E24E]/10 text-[#C7E24E] border border-[#C7E24E]/30 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                TRAI DLT Verified: BSNL
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 text-xs font-sans">
+              {/* Left 7 cols: Config form */}
+              <form onSubmit={handleSaveDltConfig} className="lg:col-span-8 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[#ECEAE2]/80 font-medium mb-1">
+                      BSNL Principal Entity (PE) ID
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="17011582900000xxxxx"
+                      value={dltConfig.entityId}
+                      onChange={(e) => setDltConfig({ ...dltConfig, entityId: e.target.value })}
+                      className="w-full bg-[#070A0D] border border-[#4E4C4B] p-2.5 rounded-xl text-xs font-data text-[#ECEAE2] outline-none focus:border-[#C7E24E]"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[#ECEAE2]/80 font-medium mb-1">
+                      Approved Sender ID (Header)
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      placeholder="KAVITH"
+                      value={dltConfig.senderHeader}
+                      onChange={(e) => setDltConfig({ ...dltConfig, senderHeader: e.target.value.toUpperCase() })}
+                      className="w-full bg-[#070A0D] border border-[#4E4C4B] p-2.5 rounded-xl text-xs font-data font-bold text-[#C7E24E] uppercase tracking-wider outline-none focus:border-[#C7E24E]"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[#ECEAE2]/80 font-medium mb-1">
+                      Approved DLT Content Template ID
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="17071629000000xxxxx"
+                      value={dltConfig.templateId}
+                      onChange={(e) => setDltConfig({ ...dltConfig, templateId: e.target.value })}
+                      className="w-full bg-[#070A0D] border border-[#4E4C4B] p-2.5 rounded-xl text-xs font-data text-[#ECEAE2] outline-none focus:border-[#C7E24E]"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[#ECEAE2]/80 font-medium mb-1">
+                      SMS Gateway Provider
+                    </label>
+                    <select
+                      value={dltConfig.gatewayProvider}
+                      onChange={(e) => setDltConfig({ ...dltConfig, gatewayProvider: e.target.value as any })}
+                      className="w-full bg-[#070A0D] border border-[#4E4C4B] p-2.5 rounded-xl text-xs font-bold text-[#ECEAE2] outline-none"
+                    >
+                      <option value="simulated">Simulated DLT Mode (Testing without API key)</option>
+                      <option value="fast2sms">Fast2SMS (Quick DLT API)</option>
+                      <option value="msg91">MSG91 (v5 DLT OTP API)</option>
+                      <option value="textlocal">Textlocal India</option>
+                      <option value="twilio">Twilio India DLT Header</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[#ECEAE2]/80 font-medium mb-1">
+                    SMS Gateway API Key
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="Enter API Key from Fast2SMS / MSG91 / Gateway"
+                    value={dltConfig.apiKey}
+                    onChange={(e) => setDltConfig({ ...dltConfig, apiKey: e.target.value })}
+                    className="w-full bg-[#070A0D] border border-[#4E4C4B] p-2.5 rounded-xl text-xs font-data text-[#ECEAE2] outline-none focus:border-[#C7E24E]"
+                  />
+                  <p className="text-[10px] text-[#ECEAE2]/50 mt-1">
+                    Registered Template Text: <code className="text-[#C7E24E]">{dltConfig.templateContent}</code>
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3 pt-1">
+                  <button
+                    type="submit"
+                    className="bg-[#C7E24E] hover:bg-[#b0cc3d] text-[#070A0D] px-5 py-2.5 rounded-xl font-bold uppercase tracking-wider text-xs transition-all flex items-center gap-1.5 shadow"
+                  >
+                    <span className="material-symbols-outlined text-base">save</span>
+                    <span>Save DLT Credentials</span>
+                  </button>
+                  {dltSaveNotice && (
+                    <span className="text-xs text-[#C7E24E] font-bold animate-fadeIn">{dltSaveNotice}</span>
+                  )}
+                </div>
+              </form>
+
+              {/* Right 4 cols: Live SMS OTP Tester */}
+              <div className="lg:col-span-4 bg-[#070A0D] p-4 rounded-xl border border-[#4E4C4B] space-y-3">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-[#B88A44] block">LIVE TEST SENDER</span>
+                  <h4 className="font-serif-display text-sm font-bold text-[#ECEAE2]">Test BSNL DLT OTP Dispatch</h4>
+                </div>
+
+                <form onSubmit={handleSendTestDltSms} className="space-y-2.5">
+                  <div>
+                    <label className="block text-[11px] text-[#ECEAE2]/70 mb-1">Mobile (+91)</label>
+                    <input
+                      type="tel"
+                      maxLength={10}
+                      placeholder="9876543210"
+                      value={testPhone}
+                      onChange={(e) => setTestPhone(e.target.value.replace(/\D/g, ''))}
+                      className="w-full bg-[#20221C] border border-[#4E4C4B] px-3 py-2 rounded-xl font-data text-xs font-bold text-[#C7E24E] focus:outline-none"
+                      required
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={testSmsLoading}
+                    className="w-full bg-[#B88A44] hover:bg-[#a3793b] text-white py-2.5 rounded-xl font-bold uppercase text-[11px] tracking-wider transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <span className="material-symbols-outlined text-base">send_to_mobile</span>
+                    <span>{testSmsLoading ? 'Sending...' : 'Send Test BSNL DLT SMS'}</span>
+                  </button>
+
+                  {testSmsNotice && (
+                    <p className="text-[11px] text-[#C7E24E] bg-[#C7E24E]/10 p-2.5 rounded-lg border border-[#C7E24E]/30 font-data leading-tight">
+                      {testSmsNotice}
+                    </p>
+                  )}
+                </form>
+              </div>
+            </div>
           </div>
         </div>
 

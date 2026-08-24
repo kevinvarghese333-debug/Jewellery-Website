@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
-import { ActiveView, Product, CartItem, PurityType } from './types';
+import React, { useState, useEffect } from 'react';
+import { ActiveView, Product, CartItem, PurityType, UserProfile } from './types';
 import { PRODUCTS, CURRENT_GOLD_RATE_22K, calculatePriceBreakdown } from './data/products';
 import { HeaderNav } from './components/HeaderNav';
 import { Footer } from './components/Footer';
 import { GoldRateCalculatorModal } from './components/GoldRateCalculatorModal';
 import { SearchModal } from './components/SearchModal';
 import { AppointmentModal } from './components/AppointmentModal';
+import { UserLoginModal } from './components/UserLoginModal';
 import { HomeView } from './views/HomeView';
 import { CatalogView } from './views/CatalogView';
 import { PdpView } from './views/PdpView';
@@ -15,8 +16,15 @@ import { LocationsView } from './views/LocationsView';
 import { OnamCampaignView } from './views/OnamCampaignView';
 import { StaffRedemptionView } from './views/StaffRedemptionView';
 import { AdminCampaignView } from './views/AdminCampaignView';
+import { 
+  initAuthListener, 
+  syncWishlistToFirestore, 
+  fetchWishlistFromFirestore 
+} from './data/firebaseAuthService';
+import { getStoredUserProfile } from './data/userSession';
 
 export function App() {
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(getStoredUserProfile());
   const [activeView, setActiveView] = useState<ActiveView>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -26,7 +34,9 @@ export function App() {
     }
     return 'home';
   });
+
   const [selectedProduct, setSelectedProduct] = useState<Product>(PRODUCTS[0]);
+  
   // Session persistence for cart state
   const [cart, setCart] = useState<CartItem[]>(() => {
     if (typeof window !== 'undefined') {
@@ -49,17 +59,22 @@ export function App() {
     ];
   });
 
-  const [cartToast, setCartToast] = useState<string | null>(null);
-
-  // Sync cart changes to sessionStorage
-  React.useEffect(() => {
-    try {
-      sessionStorage.setItem('kavitha_shopping_cart', JSON.stringify(cart));
-    } catch (e) {
-      console.error('Error saving cart to sessionStorage:', e);
+  // Wishlist state with local & cloud sync
+  const [wishlistIds, setWishlistIds] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('kavitha_local_wishlist');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch (e) {
+        console.error('Error loading wishlist from localStorage:', e);
+      }
     }
-  }, [cart]);
-  const [wishlistIds, setWishlistIds] = useState<string[]>([PRODUCTS[1].id, PRODUCTS[2].id]);
+    return [PRODUCTS[1].id, PRODUCTS[2].id];
+  });
+
   const [goldRate, setGoldRateState] = useState<number>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('kavitha_live_gold_rate');
@@ -67,6 +82,56 @@ export function App() {
     }
     return CURRENT_GOLD_RATE_22K;
   });
+
+  // Modals
+  const [isGoldCalcOpen, setIsGoldCalcOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isAppointmentOpen, setIsAppointmentOpen] = useState(false);
+  const [isUserAuthOpen, setIsUserAuthOpen] = useState(false);
+  const [userAuthInitialTab, setUserAuthInitialTab] = useState<'profile' | 'orders' | 'vouchers'>('profile');
+  const [appointmentProduct, setAppointmentProduct] = useState<Product | null>(null);
+
+  // Sync cart changes to sessionStorage
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('kavitha_shopping_cart', JSON.stringify(cart));
+    } catch (e) {
+      console.error('Error saving cart to sessionStorage:', e);
+    }
+  }, [cart]);
+
+  // Sync wishlist to localStorage & Firestore
+  useEffect(() => {
+    try {
+      localStorage.setItem('kavitha_local_wishlist', JSON.stringify(wishlistIds));
+    } catch (e) {
+      console.error(e);
+    }
+
+    if (currentUser?.uid) {
+      syncWishlistToFirestore(currentUser.uid, wishlistIds);
+    }
+  }, [wishlistIds, currentUser?.uid]);
+
+  // Subscribe to Firebase Auth changes
+  useEffect(() => {
+    const unsubscribe = initAuthListener(async (user) => {
+      setCurrentUser(user);
+      if (user?.uid) {
+        // Fetch cloud wishlist and merge
+        try {
+          const cloudWishlist = await fetchWishlistFromFirestore(user.uid);
+          if (cloudWishlist && cloudWishlist.length > 0) {
+            setWishlistIds((prev) => Array.from(new Set([...prev, ...cloudWishlist])));
+          }
+        } catch (e) {
+          console.warn('Error fetching cloud wishlist:', e);
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const setGoldRate = (rate: number) => {
     setGoldRateState(rate);
@@ -76,12 +141,6 @@ export function App() {
       console.error(e);
     }
   };
-
-  // Modals
-  const [isGoldCalcOpen, setIsGoldCalcOpen] = useState(false);
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [isAppointmentOpen, setIsAppointmentOpen] = useState(false);
-  const [appointmentProduct, setAppointmentProduct] = useState<Product | null>(null);
 
   // Navigation handler
   const handleNavigate = (view: ActiveView) => {
@@ -157,6 +216,12 @@ export function App() {
     setIsAppointmentOpen(true);
   };
 
+  // Open User Auth Modal
+  const handleOpenAuthModal = (tab: 'profile' | 'orders' | 'vouchers' = 'profile') => {
+    setUserAuthInitialTab(tab);
+    setIsUserAuthOpen(true);
+  };
+
   // Calculate cart subtotal for loyalty points tracking
   const cartTotal = cart.reduce((sum, item) => {
     const bd = calculatePriceBreakdown(item.product.weightGrams, item.selectedPurity, goldRate);
@@ -178,7 +243,11 @@ export function App() {
       />
 
       {/* Main View Container */}
-      <main className="flex-grow max-w-7xl w-full mx-auto px-4 md:px-12 pt-6">
+      <main className={`flex-grow w-full ${
+        activeView === 'onam-campaign' || activeView === 'staff-redemption' || activeView === 'campaign-admin'
+          ? ''
+          : 'max-w-7xl mx-auto px-4 sm:px-6 md:px-12 pt-6'
+      }`}>
         {activeView === 'home' && (
           <HomeView
             onNavigate={handleNavigate}
@@ -217,6 +286,7 @@ export function App() {
             onClearCart={handleClearCart}
             onNavigate={handleNavigate}
             goldRate={goldRate}
+            onOpenAuthModal={() => handleOpenAuthModal('orders')}
           />
         )}
 
@@ -227,6 +297,7 @@ export function App() {
             onAddToCart={(p) => handleAddToCart(p, p.purity, 1)}
             onNavigate={handleNavigate}
             goldRate={goldRate}
+            onOpenAuthModal={() => handleOpenAuthModal('profile')}
           />
         )}
 
@@ -272,6 +343,15 @@ export function App() {
         isOpen={isAppointmentOpen}
         onClose={() => setIsAppointmentOpen(false)}
         selectedProduct={appointmentProduct}
+      />
+
+      <UserLoginModal
+        isOpen={isUserAuthOpen}
+        onClose={() => setIsUserAuthOpen(false)}
+        onNavigate={handleNavigate}
+        onUserChange={(u) => setCurrentUser(u)}
+        wishlistCount={wishlistIds.length}
+        initialTab={userAuthInitialTab}
       />
     </div>
   );

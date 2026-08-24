@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Product } from '../types';
+import { Logo } from './Logo';
 
 interface AppointmentModalProps {
   isOpen: boolean;
@@ -40,9 +41,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
         {!submitted ? (
           <div>
             <div className="flex items-center gap-3 mb-4 border-b border-[#d7c1c4] pb-3">
-              <span className="material-symbols-outlined text-[#B88A44] text-2xl">
-                {type === 'video' ? 'videocam' : 'storefront'}
-              </span>
+              <Logo variant="mark-only" size="sm" />
               <div>
                 <h3 className="font-serif-display text-xl text-[#370617] font-bold">
                   {type === 'video' ? 'Book Live Video Call' : 'Showroom Private Visit'}

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ActiveView, OnamCoupon } from '../types';
 import { getCouponByCode, redeemCouponInStore, calculateEffectiveMakingChargeDiscount } from '../data/campaignData';
+import { Logo } from '../components/Logo';
 
 interface StaffRedemptionViewProps {
   onNavigate: (view: ActiveView) => void;
@@ -74,8 +75,8 @@ export const StaffRedemptionView: React.FC<StaffRedemptionViewProps> = ({ onNavi
 
       {/* Top Staff Navigation Header */}
       <div className="bg-[#20221C] border-b border-[#4E4C4B]/40 px-4 md:px-12 py-3 flex justify-between items-center text-xs">
-        <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-[#C7E24E]">storefront</span>
+        <div className="flex items-center gap-3">
+          <Logo variant="mark-only" size="sm" />
           <span className="font-bold tracking-wider uppercase text-[#C7E24E]">
             SHOWROOM STAFF COUPON REDEMPTION PORTAL
           </span>

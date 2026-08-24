@@ -94,3 +94,70 @@ export interface CampaignMetrics {
   totalSalesGenerated: number;
 }
 
+export interface ProductReview {
+  id: string;
+  productId: string;
+  authorName: string;
+  location?: string;
+  rating: number; // 1 to 5
+  title: string;
+  comment: string;
+  date: string;
+  verifiedBuyer: boolean;
+  purityBought?: string;
+  helpfulCount: number;
+}
+
+export interface UserProfile {
+  uid?: string;
+  name: string;
+  email: string;
+  mobile: string;
+  city?: string;
+  photoURL?: string;
+  authProvider?: 'google' | 'password' | 'phone' | 'guest';
+  isLoggedIn: boolean;
+  loyaltyPoints: number;
+  lastLoginAt: string;
+  savedWishlistCount?: number;
+}
+
+export interface OrderItemRecord {
+  productId: string;
+  name: string;
+  category?: string;
+  purity: PurityType;
+  weightGrams: number;
+  quantity: number;
+  unitPrice?: number;
+  pricePerUnit?: number;
+  totalPrice: number;
+  image: string;
+  giftMessage?: string;
+}
+
+export interface OrderRecord {
+  id: string;
+  orderNumber: string;
+  userId?: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  items: OrderItemRecord[];
+  goldValue: number;
+  makingCharges: number;
+  gst: number;
+  discount: number;
+  couponCode?: string;
+  grandTotal: number;
+  totalWeightGrams: number;
+  status: 'CONFIRMED' | 'HALLMARK_VERIFIED' | 'INSURED_TRANSIT' | 'DELIVERED';
+  createdAt: string;
+  estimatedDeliveryDate?: string;
+  trackingNumber: string;
+  paymentMethod: string;
+  deliveryAddress?: string;
+}
+
+
+

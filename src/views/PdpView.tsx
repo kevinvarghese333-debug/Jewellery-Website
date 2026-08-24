@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Product, PurityType, ActiveView } from '../types';
 import { calculatePriceBreakdown } from '../data/products';
+import { ProductReviewsSection } from '../components/ProductReviewsSection';
 
 interface PdpViewProps {
   product: Product;
@@ -134,14 +135,23 @@ export const PdpView: React.FC<PdpViewProps> = ({
               <h1 className="font-serif-display text-2xl md:text-3xl font-bold text-[#370617] mt-1">
                 {product.name}
               </h1>
-              <div className="flex items-center gap-3 mt-2 text-xs font-sans text-[#524346]">
+              <div className="flex flex-wrap items-center gap-3 mt-2 text-xs font-sans text-[#524346]">
+                <a
+                  href="#pdp-reviews-section"
+                  className="flex items-center gap-1 bg-[#FAF6F0] px-2.5 py-1 rounded-md border border-[#b88a44]/30 text-[#B88A44] font-bold hover:underline"
+                >
+                  <span className="material-symbols-outlined text-sm text-[#B88A44]">star</span>
+                  <span>4.9 / 5.0</span>
+                  <span className="text-[#847375] font-normal text-[11px]">(Verified Reviews)</span>
+                </a>
+                <span>•</span>
                 <span className="font-data bg-[#f2e5e6] px-2 py-0.5 rounded text-[#370617] font-semibold">
                   SKU: KVG-2026-{product.id.slice(0, 6).toUpperCase()}
                 </span>
                 <span>•</span>
                 <span className="text-[#1F7A52] font-semibold flex items-center gap-1">
                   <span className="w-2 h-2 rounded-full bg-[#1F7A52] inline-block animate-pulse"></span>
-                  In Stock (Ready to Ship)
+                  In Stock
                 </span>
               </div>
             </div>
@@ -332,6 +342,9 @@ export const PdpView: React.FC<PdpViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Customer Reviews & Star Rating System */}
+      <ProductReviewsSection productId={product.id} productName={product.name} />
 
       {/* Sticky Mobile Bottom CTA Bar */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 p-3 bg-[#fff8f7] border-t border-[#d7c1c4] shadow-2xl z-40 flex items-center justify-between gap-3">

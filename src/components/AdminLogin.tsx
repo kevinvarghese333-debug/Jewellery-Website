@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Logo } from './Logo';
 
 interface AdminLoginProps {
   onSuccess: () => void;
@@ -52,14 +53,9 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onSuccess, onCancel }) =
         <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#B88A44] via-[#C7E24E] to-[#B88A44] rounded-t-3xl" />
 
         {/* Header */}
-        <div className="text-center space-y-2 pt-2">
-          <div className="w-16 h-16 bg-[#070A0D] border-2 border-[#C7E24E] rounded-2xl mx-auto flex items-center justify-center text-[#C7E24E] shadow-inner">
-            <span className="material-symbols-outlined text-3xl">admin_panel_settings</span>
-          </div>
-          <span className="text-[10px] font-sans uppercase tracking-[0.25em] text-[#C7E24E] font-extrabold block pt-2">
-            KAVITHA JEWELLERY PORTAL
-          </span>
-          <h1 className="font-serif-display text-2xl font-bold text-[#ECEAE2]">
+        <div className="text-center space-y-3 pt-2">
+          <Logo variant="stacked" theme="dark" size="md" className="mx-auto" />
+          <h1 className="font-serif-display text-xl font-bold text-[#ECEAE2] pt-2">
             Admin Control Authentication
           </h1>
           <p className="font-sans text-xs text-[#ECEAE2]/70">

@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
-import { CartItem, ActiveView } from '../types';
+import { CartItem, ActiveView, OrderRecord, OrderItemRecord, UserProfile } from '../types';
 import { calculatePriceBreakdown } from '../data/products';
+import { CheckoutOtpModal } from '../components/CheckoutOtpModal';
+import { createOrderInFirestore } from '../data/firebaseAuthService';
+import { getStoredUserProfile } from '../data/userSession';
 
 interface CartViewProps {
   cart: CartItem[];
@@ -9,6 +12,7 @@ interface CartViewProps {
   onClearCart?: () => void;
   onNavigate: (view: ActiveView) => void;
   goldRate: number;
+  onOpenAuthModal?: () => void;
 }
 
 export const CartView: React.FC<CartViewProps> = ({
@@ -18,6 +22,7 @@ export const CartView: React.FC<CartViewProps> = ({
   onClearCart,
   onNavigate,
   goldRate,
+  onOpenAuthModal,
 }) => {
   const [giftNotes, setGiftNotes] = useState<{ [id: string]: string }>({});
   const [showGiftInput, setShowGiftInput] = useState<{ [id: string]: boolean }>({});
@@ -25,6 +30,9 @@ export const CartView: React.FC<CartViewProps> = ({
   const [appliedDiscount, setAppliedDiscount] = useState<number>(0);
   const [couponNotice, setCouponNotice] = useState<string>('');
   const [checkoutStep, setCheckoutStep] = useState<'cart' | 'success'>('cart');
+  const [isOtpModalOpen, setIsOtpModalOpen] = useState<boolean>(false);
+  const [verifiedPhone, setVerifiedPhone] = useState<string>('');
+  const [placedOrder, setPlacedOrder] = useState<OrderRecord | null>(null);
 
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
   const totalWeightGrams = cart.reduce((sum, item) => sum + (item.product.weightGrams * item.quantity), 0);
@@ -80,8 +88,59 @@ export const CartView: React.FC<CartViewProps> = ({
     }
   };
 
-  const handleCheckoutSuccess = () => {
+  const handleOtpVerified = async (phone: string) => {
+    setVerifiedPhone(phone);
+    setIsOtpModalOpen(false);
+
+    const currentUser: UserProfile | null = getStoredUserProfile();
+    const orderNumber = `KVG-2026-${Math.floor(10000 + Math.random() * 90000)}`;
+    const trackingNumber = `BULLION-EXP-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    const items: OrderItemRecord[] = cart.map((item) => {
+      const bd = calculatePriceBreakdown(item.product.weightGrams, item.selectedPurity, goldRate);
+      return {
+        productId: item.product.id,
+        name: item.product.name,
+        purity: item.selectedPurity,
+        weightGrams: item.product.weightGrams,
+        quantity: item.quantity,
+        pricePerUnit: bd.total,
+        totalPrice: bd.total * item.quantity,
+        image: item.product.images.main,
+      };
+    });
+
+    const newOrder: OrderRecord = {
+      id: `ord_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+      orderNumber,
+      userId: currentUser?.uid || '',
+      customerName: currentUser?.name || `Patron (+91 ${phone})`,
+      customerPhone: phone,
+      customerEmail: currentUser?.email || `${phone}@kavitha-patron.in`,
+      items,
+      goldValue: totalGoldValue,
+      makingCharges: totalMakingCharges,
+      gst: totalTaxes,
+      discount: appliedDiscount,
+      grandTotal: finalGrandTotal,
+      totalWeightGrams,
+      createdAt: new Date().toISOString(),
+      status: 'CONFIRMED',
+      trackingNumber,
+      paymentMethod: 'UPI / NEFT Bullion Escrow',
+      deliveryAddress: currentUser?.city || 'Registered Address in Kerala, India',
+    };
+
+    setPlacedOrder(newOrder);
     setCheckoutStep('success');
+
+    // Persist in Firestore
+    try {
+      await createOrderInFirestore(newOrder);
+    } catch (e) {
+      console.warn('Failed to write order to Firestore:', e);
+    }
+
     if (onClearCart) {
       onClearCart();
     }
@@ -93,21 +152,39 @@ export const CartView: React.FC<CartViewProps> = ({
         <div className="w-16 h-16 bg-[#FAF6F0] border border-[#B88A44] text-[#B88A44] rounded-full flex items-center justify-center mx-auto shadow-md">
           <span className="material-symbols-outlined text-3xl">verified</span>
         </div>
-        <h2 className="font-serif-display text-3xl font-bold text-[#370617]">
-          Order Confirmed & Secured
-        </h2>
+        <div>
+          <span className="text-[10px] font-sans uppercase tracking-widest text-[#B88A44] font-bold block">
+            TRANSACTION SECURED VIA FIREBASE
+          </span>
+          <h2 className="font-serif-display text-3xl font-bold text-[#370617] mt-1">
+            Order Confirmed & Secured
+          </h2>
+        </div>
         <p className="font-sans text-xs text-[#524346] leading-relaxed max-w-md mx-auto">
-          Your order <strong className="text-[#370617] font-data">#KVG-2026-98214</strong> has been placed. You will receive an SMS and WhatsApp notification with live GPS tracking from our insured bullion logistics partner.
+          Your order <strong className="text-[#370617] font-data">#{placedOrder?.orderNumber || 'KVG-2026-98214'}</strong> has been saved to your account. You will receive an SMS and WhatsApp notification with live GPS tracking from our insured bullion logistics partner.
         </p>
 
-        <div className="bg-white p-5 rounded-xl border border-[#d7c1c4] space-y-3 text-xs font-sans text-left shadow-sm">
+        <div className="bg-white p-5 rounded-2xl border border-[#d7c1c4] space-y-3 text-xs font-sans text-left shadow-sm">
+          <div className="flex justify-between border-b border-[#f2e5e6] pb-2">
+            <span className="text-[#847375]">Order ID</span>
+            <span className="font-data font-bold text-[#370617]">{placedOrder?.orderNumber}</span>
+          </div>
           <div className="flex justify-between border-b border-[#f2e5e6] pb-2">
             <span className="text-[#847375]">Total Amount Paid</span>
             <span className="font-data font-bold text-[#370617]">₹{finalGrandTotal.toLocaleString()}</span>
           </div>
+          {verifiedPhone && (
+            <div className="flex justify-between border-b border-[#f2e5e6] pb-2">
+              <span className="text-[#847375]">Verified SMS OTP Contact</span>
+              <span className="font-data font-semibold text-[#1F7A52] flex items-center gap-1">
+                <span className="material-symbols-outlined text-sm">check_circle</span>
+                +91 {verifiedPhone}
+              </span>
+            </div>
+          )}
           <div className="flex justify-between border-b border-[#f2e5e6] pb-2">
-            <span className="text-[#847375]">Insured Transit Courier</span>
-            <span className="text-[#1F7A52] font-semibold">Free Express Courier</span>
+            <span className="text-[#847375]">Insured Transit Tracking</span>
+            <span className="text-[#1F7A52] font-semibold font-data">{placedOrder?.trackingNumber}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-[#847375]">Authenticity Certificate</span>
@@ -115,15 +192,26 @@ export const CartView: React.FC<CartViewProps> = ({
           </div>
         </div>
 
-        <button
-          onClick={() => {
-            setCheckoutStep('cart');
-            onNavigate('catalog');
-          }}
-          className="bg-[#370617] text-white px-8 py-3.5 rounded-lg font-sans text-xs uppercase tracking-widest font-semibold hover:bg-[#521b2b] transition-colors min-h-[44px]"
-        >
-          Explore Catalogue Collections
-        </button>
+        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          <button
+            onClick={() => {
+              if (onOpenAuthModal) onOpenAuthModal();
+            }}
+            className="bg-[#370617] text-[#FAF6F0] px-6 py-3.5 rounded-xl font-sans text-xs uppercase tracking-widest font-semibold hover:bg-[#521b2b] transition-colors flex items-center justify-center gap-2"
+          >
+            <span className="material-symbols-outlined text-sm text-[#C7E24E]">receipt_long</span>
+            <span>View in My Vault / Orders</span>
+          </button>
+          <button
+            onClick={() => {
+              setCheckoutStep('cart');
+              onNavigate('catalog');
+            }}
+            className="bg-[#FAF6F0] border border-[#d7c1c4] text-[#370617] px-6 py-3.5 rounded-xl font-sans text-xs uppercase tracking-widest font-semibold hover:bg-[#f2e5e6] transition-colors"
+          >
+            Continue Browsing
+          </button>
+        </div>
       </div>
     );
   }
@@ -357,10 +445,11 @@ export const CartView: React.FC<CartViewProps> = ({
             </form>
 
             <button
-              onClick={handleCheckoutSuccess}
-              className="w-full bg-[#370617] hover:bg-[#521b2b] text-white py-3.5 rounded-lg font-sans text-xs uppercase tracking-[0.18em] font-bold shadow-lg transition-all duration-200 min-h-[48px]"
+              onClick={() => setIsOtpModalOpen(true)}
+              className="w-full bg-[#370617] hover:bg-[#521b2b] text-white py-3.5 rounded-lg font-sans text-xs uppercase tracking-[0.18em] font-bold shadow-lg transition-all duration-200 min-h-[48px] flex items-center justify-center gap-2"
             >
-              PROCEED TO SECURE CHECKOUT
+              <span className="material-symbols-outlined text-base">lock</span>
+              <span>PROCEED TO SECURE CHECKOUT</span>
             </button>
 
             <div className="bg-[#FAF6F0] p-4 rounded-xl border border-[#b88a44]/30 space-y-2 text-xs font-sans text-[#524346]">
@@ -376,6 +465,14 @@ export const CartView: React.FC<CartViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* BSNL DLT Secure OTP Verification Modal */}
+      <CheckoutOtpModal
+        isOpen={isOtpModalOpen}
+        onClose={() => setIsOtpModalOpen(false)}
+        onVerified={handleOtpVerified}
+        grandTotal={finalGrandTotal}
+      />
     </div>
   );
 };

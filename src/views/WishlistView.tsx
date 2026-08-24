@@ -1,6 +1,7 @@
 import React from 'react';
 import { PRODUCTS, getLiveProductPrice } from '../data/products';
-import { Product, ActiveView } from '../types';
+import { Product, ActiveView, UserProfile } from '../types';
+import { getStoredUserProfile } from '../data/userSession';
 
 interface WishlistViewProps {
   wishlistIds: string[];
@@ -8,6 +9,7 @@ interface WishlistViewProps {
   onAddToCart: (product: Product) => void;
   onNavigate: (view: ActiveView) => void;
   goldRate?: number;
+  onOpenAuthModal?: () => void;
 }
 
 export const WishlistView: React.FC<WishlistViewProps> = ({
@@ -16,8 +18,10 @@ export const WishlistView: React.FC<WishlistViewProps> = ({
   onAddToCart,
   onNavigate,
   goldRate,
+  onOpenAuthModal,
 }) => {
   const wishlistedProducts = PRODUCTS.filter((p) => wishlistIds.includes(p.id));
+  const currentUser: UserProfile | null = getStoredUserProfile();
 
   return (
     <div className="space-y-8 animate-fadeIn pb-16">
@@ -30,13 +34,36 @@ export const WishlistView: React.FC<WishlistViewProps> = ({
         <span className="text-[#370617] font-semibold">Your Saved Wishlist ({wishlistedProducts.length})</span>
       </nav>
 
-      <div className="border-b border-[#d7c1c4] pb-4">
-        <h1 className="font-serif-display text-3xl md:text-4xl text-[#370617] font-bold">
-          Saved Wishlist Pieces
-        </h1>
-        <p className="font-sans text-xs text-[#370617]/80 mt-1">
-          Keep track of your favorite gold chokers, haarams, and bridal jewelry creations.
-        </p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end border-b border-[#d7c1c4] pb-4 gap-3">
+        <div>
+          <span className="text-[10px] font-sans uppercase tracking-widest text-[#B88A44] font-bold">
+            CURATED PERSONAL COLLECTION
+          </span>
+          <h1 className="font-serif-display text-3xl md:text-4xl text-[#370617] font-bold">
+            Saved Wishlist Pieces
+          </h1>
+          <p className="font-sans text-xs text-[#524346] mt-1">
+            Keep track of your favorite gold chokers, haarams, and bridal jewelry creations.
+          </p>
+        </div>
+
+        {/* Cloud Sync Status Indicator */}
+        <div className="flex items-center gap-2">
+          {currentUser ? (
+            <div className="bg-[#1F7A52]/10 border border-[#1F7A52]/30 px-3 py-1.5 rounded-full flex items-center gap-1.5 text-xs text-[#1F7A52] font-semibold">
+              <span className="material-symbols-outlined text-sm">cloud_done</span>
+              <span>Saved to Firebase ({currentUser.name.split(' ')[0]})</span>
+            </div>
+          ) : (
+            <button
+              onClick={onOpenAuthModal}
+              className="bg-[#370617] text-[#FAF6F0] hover:bg-[#521b2b] px-3.5 py-1.5 rounded-full flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-all shadow-sm"
+            >
+              <span className="material-symbols-outlined text-sm text-[#C7E24E]">cloud_upload</span>
+              <span>Sign In to Save Across Devices</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {wishlistedProducts.length === 0 ? (
