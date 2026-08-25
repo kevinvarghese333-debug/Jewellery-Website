@@ -32,7 +32,7 @@
   body {
     background-color: var(--color-surface);
     color: var(--color-on-surface);
-    font-family: 'Barlow', 'Inter', sans-serif;
+    font-family: 'Proxima Nova', 'Plus Jakarta Sans', 'Barlow', 'Inter', sans-serif;
     background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 5L5 30l25 25 25-25z' fill='%23b88a44' fill-opacity='0.04' fill-rule='evenodd'/%3E%3C/svg%3E");
   }
 
@@ -40,8 +40,16 @@
     font-family: 'Playfair Display', serif;
   }
 
-  h3, h4, .font-brand {
-    font-family: 'Manrope', 'Playfair Display', sans-serif;
+  .font-serif-display {
+    font-family: 'Playfair Display', Georgia, serif;
+  }
+
+  .font-brand, .font-proxima, .font-logo {
+    font-family: 'Proxima Nova', 'Plus Jakarta Sans', 'Montserrat', system-ui, -apple-system, sans-serif;
+  }
+
+  h3, h4 {
+    font-family: 'Proxima Nova', 'Plus Jakarta Sans', 'Manrope', sans-serif;
   }
 
   .font-data {

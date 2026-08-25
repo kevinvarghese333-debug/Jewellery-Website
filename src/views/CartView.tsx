@@ -4,6 +4,7 @@ import { calculatePriceBreakdown } from '../data/products';
 import { CheckoutOtpModal } from '../components/CheckoutOtpModal';
 import { createOrderInFirestore } from '../data/firebaseAuthService';
 import { getStoredUserProfile } from '../data/userSession';
+import { useToast } from '../context/ToastContext';
 
 interface CartViewProps {
   cart: CartItem[];
@@ -24,6 +25,7 @@ export const CartView: React.FC<CartViewProps> = ({
   goldRate,
   onOpenAuthModal,
 }) => {
+  const { notifySuccess, notifyError } = useToast();
   const [giftNotes, setGiftNotes] = useState<{ [id: string]: string }>({});
   const [showGiftInput, setShowGiftInput] = useState<{ [id: string]: boolean }>({});
   const [couponCode, setCouponCode] = useState<string>('');
@@ -70,21 +72,26 @@ export const CartView: React.FC<CartViewProps> = ({
       const discount = Math.min(50000, totalMakingCharges * 0.5);
       setAppliedDiscount(discount);
       setCouponNotice(`✓ Festive Voucher Applied! ₹${discount.toLocaleString()} discount on making charges.`);
+      notifySuccess('Festive Voucher Applied', `₹${discount.toLocaleString()} savings deducted from making charges!`);
     } else if (clean.includes('ONAM-25000') || clean === 'ONAM25K') {
       const discount = Math.min(25000, totalMakingCharges * 0.5);
       setAppliedDiscount(discount);
       setCouponNotice(`✓ Festive Voucher Applied! ₹${discount.toLocaleString()} discount on making charges.`);
+      notifySuccess('Festive Voucher Applied', `₹${discount.toLocaleString()} savings deducted from making charges!`);
     } else if (clean.includes('ONAM-5000') || clean === 'ONAM5K') {
       const discount = Math.min(5000, totalMakingCharges * 0.5);
       setAppliedDiscount(discount);
       setCouponNotice(`✓ Festive Voucher Applied! ₹${discount.toLocaleString()} discount on making charges.`);
+      notifySuccess('Festive Voucher Applied', `₹${discount.toLocaleString()} savings deducted from making charges!`);
     } else if (clean.includes('ONAM') || clean === 'FESTIVE1000') {
       const discount = Math.min(1000, totalMakingCharges * 0.5);
       setAppliedDiscount(discount);
       setCouponNotice(`✓ Onam Discount Code Applied! ₹${discount.toLocaleString()} off.`);
+      notifySuccess('Promo Code Applied', `₹${discount.toLocaleString()} off your order!`);
     } else {
       setAppliedDiscount(0);
       setCouponNotice('⚠️ Invalid or expired voucher code. Try "ONAM5K" or enter your raffle code.');
+      notifyError('Invalid Code', 'Please check the voucher code and try again.');
     }
   };
 

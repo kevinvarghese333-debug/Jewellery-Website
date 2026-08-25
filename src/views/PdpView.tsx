@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Product, PurityType, ActiveView } from '../types';
+import { Product, PurityType, ActiveView, UserProfile } from '../types';
 import { calculatePriceBreakdown } from '../data/products';
+import { getProductReviews } from '../data/reviewsData';
 import { ProductReviewsSection } from '../components/ProductReviewsSection';
 
 interface PdpViewProps {
@@ -9,6 +10,10 @@ interface PdpViewProps {
   onOpenAppointmentModal: (product: Product) => void;
   onNavigate: (view: ActiveView) => void;
   goldRate: number;
+  onToggleWishlist?: (product: Product) => void;
+  isWishlisted?: boolean;
+  currentUser?: UserProfile | null;
+  onOpenAuthModal?: (tab?: 'login' | 'register' | 'profile' | 'orders') => void;
 }
 
 export const PdpView: React.FC<PdpViewProps> = ({
@@ -17,12 +22,28 @@ export const PdpView: React.FC<PdpViewProps> = ({
   onOpenAppointmentModal,
   onNavigate,
   goldRate,
+  onToggleWishlist,
+  isWishlisted,
+  currentUser,
+  onOpenAuthModal,
 }) => {
   const [selectedPurity, setSelectedPurity] = useState<PurityType>(product.purity);
   const [activeImageKey, setActiveImageKey] = useState<keyof Product['images']>('main');
   const [quantity, setQuantity] = useState<number>(1);
   const [activeTab, setActiveTab] = useState<'details' | 'breakdown' | 'shipping'>('breakdown');
   const [priceLockSeconds, setPriceLockSeconds] = useState<number>(900); // 15 mins
+
+  // Interactive Hover-to-Zoom & Inspection Loupe State
+  const [isZooming, setIsZooming] = useState<boolean>(false);
+  const [zoomPosition, setZoomPosition] = useState<{ x: number; y: number }>({ x: 50, y: 50 });
+  const [isLightboxOpen, setIsLightboxOpen] = useState<boolean>(false);
+  const [lightboxZoom, setLightboxZoom] = useState<number>(1);
+
+  const initialReviews = getProductReviews(product.id);
+  const avgRating = initialReviews.length > 0 
+    ? (initialReviews.reduce((sum, r) => sum + r.rating, 0) / initialReviews.length).toFixed(1) 
+    : '5.0';
+  const totalReviewsCount = initialReviews.length;
 
   // 15-minute price lock countdown
   useEffect(() => {
@@ -31,6 +52,29 @@ export const PdpView: React.FC<PdpViewProps> = ({
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Keyboard shortcut for closing lightbox
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsLightboxOpen(false);
+      }
+    };
+    if (isLightboxOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isLightboxOpen]);
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    setZoomPosition({
+      x: Math.max(0, Math.min(100, x)),
+      y: Math.max(0, Math.min(100, y)),
+    });
+  };
 
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);
@@ -68,15 +112,46 @@ export const PdpView: React.FC<PdpViewProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
         {/* Left Column: Image Gallery (7 cols) */}
         <div className="lg:col-span-7 space-y-4">
-          {/* Main Hero Image */}
-          <div className="relative aspect-square bg-[#ffffff] rounded-2xl border border-[#d7c1c4] overflow-hidden p-6 shadow-md">
-            <img
-              src={currentImageUrl}
-              alt={product.name}
-              className="w-full h-full object-cover rounded-xl transition-all duration-300"
-            />
+          {/* Main Hero Image with Interactive Hover-to-Zoom */}
+          <div
+            className="relative aspect-square bg-[#ffffff] rounded-2xl border border-[#d7c1c4] overflow-hidden shadow-md cursor-crosshair group select-none"
+            onMouseEnter={() => setIsZooming(true)}
+            onMouseLeave={() => setIsZooming(false)}
+            onMouseMove={handleMouseMove}
+            onClick={() => setIsLightboxOpen(true)}
+            title="Click to open Fullscreen Inspection"
+          >
+            {/* Base and Zoomed Image Container */}
+            <div className="w-full h-full overflow-hidden p-6 flex items-center justify-center">
+              <img
+                src={currentImageUrl}
+                alt={product.name}
+                className={`w-full h-full object-cover rounded-xl transition-transform ease-out pointer-events-none ${
+                  isZooming ? 'scale-[2.4] duration-75' : 'scale-100 duration-300'
+                }`}
+                style={{
+                  transformOrigin: `${zoomPosition.x}% ${zoomPosition.y}%`,
+                }}
+              />
+            </div>
 
-            <div className="absolute top-4 left-4 flex flex-col gap-2">
+            {/* Subtle Crosshair Reticle Lens (Visible on Hover) */}
+            {isZooming && (
+              <div
+                className="absolute w-28 h-28 -translate-x-1/2 -translate-y-1/2 pointer-events-none rounded-full border-2 border-[#B88A44]/80 shadow-[0_0_20px_rgba(184,138,68,0.4)] backdrop-brightness-110 hidden md:block"
+                style={{
+                  left: `${zoomPosition.x}%`,
+                  top: `${zoomPosition.y}%`,
+                }}
+              >
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-2 h-2 rounded-full bg-[#B88A44]/80"></div>
+                </div>
+              </div>
+            )}
+
+            {/* Top Badges */}
+            <div className="absolute top-4 left-4 flex flex-col gap-2 pointer-events-none z-10">
               <span className="bg-[#370617] text-white font-data text-xs px-3 py-1 rounded font-bold shadow-sm">
                 {selectedPurity} / 916 Hallmark
               </span>
@@ -87,7 +162,31 @@ export const PdpView: React.FC<PdpViewProps> = ({
               )}
             </div>
 
-            <div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full border border-[#d7c1c4] text-xs font-sans text-[#370617] flex items-center gap-1 shadow-sm">
+            {/* Top Right: Fullscreen Expansion Button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsLightboxOpen(true);
+              }}
+              className="absolute top-4 right-4 bg-white/90 hover:bg-white text-[#370617] p-2 rounded-full border border-[#d7c1c4] shadow-sm hover:scale-110 transition-all z-10 flex items-center justify-center"
+              aria-label="Expand high-resolution view"
+              title="Expand high-resolution view"
+            >
+              <span className="material-symbols-outlined text-lg text-[#370617]">fullscreen</span>
+            </button>
+
+            {/* Bottom Left: Loupe Status Badge */}
+            <div className="absolute bottom-4 left-4 bg-[#370617]/90 backdrop-blur-md px-3 py-1.5 rounded-full text-xs font-sans text-[#FAF6F0] flex items-center gap-1.5 shadow-sm pointer-events-none transition-all z-10">
+              <span className="material-symbols-outlined text-sm text-[#D4AF6A] animate-pulse">
+                {isZooming ? 'search' : 'zoom_in'}
+              </span>
+              <span className="font-medium text-[11px]">
+                {isZooming ? '2.4× Heritage Macro Zoom' : 'Hover to Inspect Craftsmanship'}
+              </span>
+            </div>
+
+            {/* Bottom Right: Hallmarking Certified Badge */}
+            <div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full border border-[#d7c1c4] text-xs font-sans text-[#370617] flex items-center gap-1 shadow-sm pointer-events-none z-10">
               <span className="material-symbols-outlined text-sm text-[#B88A44]">verified</span>
               <span>100% Certified Gold</span>
             </div>
@@ -141,8 +240,8 @@ export const PdpView: React.FC<PdpViewProps> = ({
                   className="flex items-center gap-1 bg-[#FAF6F0] px-2.5 py-1 rounded-md border border-[#b88a44]/30 text-[#B88A44] font-bold hover:underline"
                 >
                   <span className="material-symbols-outlined text-sm text-[#B88A44]">star</span>
-                  <span>4.9 / 5.0</span>
-                  <span className="text-[#847375] font-normal text-[11px]">(Verified Reviews)</span>
+                  <span>{avgRating} / 5.0</span>
+                  <span className="text-[#847375] font-normal text-[11px]">({totalReviewsCount} Verified Reviews)</span>
                 </a>
                 <span>•</span>
                 <span className="font-data bg-[#f2e5e6] px-2 py-0.5 rounded text-[#370617] font-semibold">
@@ -244,13 +343,31 @@ export const PdpView: React.FC<PdpViewProps> = ({
 
             {/* CTAs */}
             <div className="space-y-3 pt-2">
-              <button
-                onClick={() => onAddToCart(product, selectedPurity, quantity)}
-                className="w-full bg-[#370617] hover:bg-[#521b2b] text-white py-3.5 min-h-[48px] rounded-lg font-sans text-xs uppercase tracking-[0.18em] font-bold shadow-lg transition-all duration-200 flex items-center justify-center gap-2 focus:ring-2 focus:ring-[#370617]"
-              >
-                <span className="material-symbols-outlined text-lg">shopping_bag</span>
-                <span>Add To Shopping Bag</span>
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => onAddToCart(product, selectedPurity, quantity)}
+                  className="flex-1 bg-[#370617] hover:bg-[#521b2b] text-white py-3.5 min-h-[48px] rounded-lg font-sans text-xs uppercase tracking-[0.18em] font-bold shadow-lg transition-all duration-200 flex items-center justify-center gap-2 focus:ring-2 focus:ring-[#370617]"
+                >
+                  <span className="material-symbols-outlined text-lg">shopping_bag</span>
+                  <span>Add To Shopping Bag</span>
+                </button>
+                {onToggleWishlist && (
+                  <button
+                    onClick={() => onToggleWishlist(product)}
+                    className={`px-4 py-3.5 min-h-[48px] rounded-lg border transition-all flex items-center justify-center ${
+                      isWishlisted
+                        ? 'bg-[#ba1a1a]/10 border-[#ba1a1a] text-[#ba1a1a]'
+                        : 'bg-white border-[#d7c1c4] text-[#847375] hover:text-[#ba1a1a] hover:border-[#ba1a1a]'
+                    }`}
+                    title={isWishlisted ? 'Remove from Wishlist' : 'Add to Wishlist'}
+                    aria-label={isWishlisted ? 'Remove from Wishlist' : 'Add to Wishlist'}
+                  >
+                    <span className="material-symbols-outlined text-xl" data-weight={isWishlisted ? 'fill' : undefined}>
+                      favorite
+                    </span>
+                  </button>
+                )}
+              </div>
 
               <button
                 onClick={() => onOpenAppointmentModal(product)}
@@ -344,7 +461,12 @@ export const PdpView: React.FC<PdpViewProps> = ({
       </div>
 
       {/* Customer Reviews & Star Rating System */}
-      <ProductReviewsSection productId={product.id} productName={product.name} />
+      <ProductReviewsSection
+        productId={product.id}
+        productName={product.name}
+        currentUser={currentUser}
+        onOpenAuthModal={onOpenAuthModal}
+      />
 
       {/* Sticky Mobile Bottom CTA Bar */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 p-3 bg-[#fff8f7] border-t border-[#d7c1c4] shadow-2xl z-40 flex items-center justify-between gap-3">
@@ -362,6 +484,117 @@ export const PdpView: React.FC<PdpViewProps> = ({
           <span>Add To Bag</span>
         </button>
       </div>
+
+      {/* Fullscreen High-Resolution Lightbox Inspection Modal */}
+      {isLightboxOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-[#070A0D]/95 backdrop-blur-md flex flex-col justify-between p-4 sm:p-6 animate-fadeIn"
+          onClick={() => setIsLightboxOpen(false)}
+        >
+          {/* Top Bar */}
+          <div
+            className="flex items-center justify-between text-white max-w-7xl w-full mx-auto pb-4 border-b border-white/10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3">
+              <span className="bg-[#B88A44] text-white text-xs font-bold px-3 py-1 rounded">
+                {selectedPurity} BIS Hallmark
+              </span>
+              <div>
+                <h3 className="font-serif-display font-bold text-lg text-[#FAF6F0] truncate max-w-md">
+                  {product.name}
+                </h3>
+                <p className="text-[11px] font-sans text-[#A89C92]">
+                  High-Precision Master Craftsmanship Inspection
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {/* Zoom Controls */}
+              <div className="hidden sm:flex items-center bg-white/10 rounded-lg p-1 border border-white/15 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setLightboxZoom((z) => Math.max(1, z - 0.5))}
+                  className="px-2.5 py-1 text-white hover:bg-white/20 rounded transition-colors flex items-center gap-1"
+                  title="Zoom Out"
+                >
+                  <span className="material-symbols-outlined text-sm">remove</span>
+                </button>
+                <span className="px-2 font-data text-white font-bold">{lightboxZoom.toFixed(1)}×</span>
+                <button
+                  type="button"
+                  onClick={() => setLightboxZoom((z) => Math.min(4, z + 0.5))}
+                  className="px-2.5 py-1 text-white hover:bg-white/20 rounded transition-colors flex items-center gap-1"
+                  title="Zoom In"
+                >
+                  <span className="material-symbols-outlined text-sm">add</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLightboxZoom(1)}
+                  className="ml-1 px-2 py-1 text-[#D4AF6A] hover:bg-white/20 rounded font-semibold text-[10px] uppercase"
+                >
+                  Reset
+                </button>
+              </div>
+
+              {/* Close Button */}
+              <button
+                type="button"
+                onClick={() => setIsLightboxOpen(false)}
+                className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition-colors"
+                aria-label="Close fullscreen inspection"
+              >
+                <span className="material-symbols-outlined text-2xl">close</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Main Zoomable Image Viewport */}
+          <div
+            className="flex-1 flex items-center justify-center overflow-hidden my-4 relative select-none"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="relative max-w-4xl max-h-[70vh] flex items-center justify-center cursor-zoom-in transition-transform duration-200"
+              style={{
+                transform: `scale(${lightboxZoom})`,
+              }}
+              onClick={() => setLightboxZoom((z) => (z >= 2.5 ? 1 : z + 0.75))}
+            >
+              <img
+                src={currentImageUrl}
+                alt={product.name}
+                className="max-h-[68vh] max-w-full object-contain rounded-2xl shadow-2xl"
+              />
+            </div>
+          </div>
+
+          {/* Bottom Thumbnails Strip */}
+          <div
+            className="max-w-xl mx-auto flex items-center justify-center gap-3 pt-3 border-t border-white/10 w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {imagesList.map((img) => (
+              <button
+                key={img.key}
+                onClick={() => {
+                  setActiveImageKey(img.key);
+                  setLightboxZoom(1);
+                }}
+                className={`relative w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden border-2 transition-all p-1 bg-white ${
+                  activeImageKey === img.key
+                    ? 'border-[#C7E24E] ring-2 ring-[#C7E24E]/50 scale-105'
+                    : 'border-white/20 opacity-70 hover:opacity-100'
+                }`}
+              >
+                <img src={img.url} alt={img.label} className="w-full h-full object-cover rounded-lg" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

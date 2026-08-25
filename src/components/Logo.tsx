@@ -6,6 +6,7 @@ interface LogoProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
   subBrand?: string;
+  align?: 'left' | 'center';
 }
 
 export const Logo: React.FC<LogoProps> = ({
@@ -14,23 +15,25 @@ export const Logo: React.FC<LogoProps> = ({
   size = 'md',
   className = '',
   subBrand,
+  align = 'center',
 }) => {
   const isDark = theme === 'dark' || theme === 'maroon';
   const textColor = theme === 'maroon' ? 'text-white' : isDark ? 'text-[#FAF6F0]' : 'text-[#370617]';
   const tagColor = theme === 'maroon' ? 'text-[#D4AF6A]' : isDark ? 'text-[#B88A44]' : 'text-[#847375]';
 
-  // Mark sizing
+  // Mark sizing for crisp, well-proportioned rendering
   const markSizeMap = {
-    sm: 28,
-    md: 40,
-    lg: 54,
-    xl: 72,
+    sm: 34,
+    md: 46,
+    lg: 58,
+    xl: 76,
   };
-  const markSize = markSizeMap[size] || 40;
+  const markSize = markSizeMap[size] || 46;
 
   /**
    * The Official Kavitha Jewellery Monogram Mark
    * Precision vector tracing of the geometric interlocking 'K' & 'J' gold crown emblem
+   * Balanced viewBox 0 0 120 120 for unclipped, proportional rendering
    */
   const MonogramMark = (
     <svg
@@ -60,9 +63,9 @@ export const Logo: React.FC<LogoProps> = ({
           <stop offset="100%" stopColor="#BA9045" />
         </linearGradient>
 
-        {/* Subtle Drop Filter for Premium Depth */}
-        <filter id="kjGoldGlow" x="-10%" y="-10%" width="120%" height="120%">
-          <feDropShadow dx="0" dy="1" stdDeviation="1.5" floodColor="#370617" floodOpacity="0.15" />
+        {/* Subtle Drop Filter for Depth */}
+        <filter id="kjGoldGlow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="1.5" stdDeviation="2" floodColor="#370617" floodOpacity="0.2" />
         </filter>
       </defs>
 
@@ -87,24 +90,31 @@ export const Logo: React.FC<LogoProps> = ({
   }
 
   if (variant === 'stacked') {
+    const alignClasses = align === 'left' ? 'items-start text-left' : 'items-center text-center';
     return (
-      <div className={`flex flex-col items-center text-center group ${className}`}>
+      <div className={`flex flex-col ${alignClasses} group ${className}`}>
         {MonogramMark}
-        <div className="mt-2.5">
+        <div className="mt-2">
           <span
-            className={`font-serif-display font-bold tracking-tight block ${textColor} ${
-              size === 'xl' ? 'text-3xl md:text-4xl' : size === 'lg' ? 'text-2xl md:text-3xl' : size === 'md' ? 'text-xl' : 'text-lg'
+            className={`font-brand font-bold tracking-tight block whitespace-nowrap ${textColor} ${
+              size === 'xl'
+                ? 'text-3xl md:text-4xl'
+                : size === 'lg'
+                ? 'text-2xl md:text-3xl'
+                : size === 'md'
+                ? 'text-xl'
+                : 'text-lg'
             }`}
           >
             Kavitha Jewellery
           </span>
           {subBrand && (
-            <span className="block text-[10px] uppercase tracking-widest text-[#B88A44] font-medium mt-0.5">
+            <span className="block text-[10px] uppercase tracking-widest text-[#B88A44] font-medium mt-0.5 whitespace-nowrap font-brand">
               {subBrand}
             </span>
           )}
-          <span className={`block font-sans text-[9px] uppercase tracking-[0.25em] ${tagColor} mt-1 font-semibold`}>
-            BUILT ON TRUST • SINCE 1992
+          <span className={`block font-brand text-[9px] uppercase tracking-[0.25em] ${tagColor} mt-1 font-bold whitespace-nowrap`}>
+            EST. 1992 • KERALA
           </span>
         </div>
       </div>
@@ -112,25 +122,31 @@ export const Logo: React.FC<LogoProps> = ({
   }
 
   return (
-    <div className={`inline-flex items-center gap-3.5 group ${className}`}>
+    <div className={`inline-flex items-center gap-2.5 sm:gap-3.5 group ${className}`}>
       {MonogramMark}
-      <div className="flex flex-col">
-        <div className="flex items-baseline gap-1.5">
+      <div className="flex flex-col justify-center">
+        <div className="flex items-baseline gap-1.5 flex-wrap sm:flex-nowrap">
           <span
-            className={`font-serif-display font-bold tracking-tight ${textColor} ${
-              size === 'xl' ? 'text-3xl' : size === 'lg' ? 'text-2xl md:text-3xl' : size === 'md' ? 'text-xl md:text-2xl' : 'text-lg'
+            className={`font-brand font-bold tracking-tight whitespace-nowrap ${textColor} ${
+              size === 'xl'
+                ? 'text-3xl md:text-4xl'
+                : size === 'lg'
+                ? 'text-2xl md:text-3xl'
+                : size === 'md'
+                ? 'text-xl sm:text-2xl'
+                : 'text-base sm:text-lg'
             }`}
           >
             Kavitha Jewellery
           </span>
           {subBrand && (
-            <span className="text-[10px] uppercase tracking-wider text-[#B88A44] font-semibold">
+            <span className="text-[10px] uppercase tracking-wider text-[#B88A44] font-semibold whitespace-nowrap font-brand">
               • {subBrand}
             </span>
           )}
         </div>
-        <span className={`font-sans text-[9px] uppercase tracking-[0.22em] font-semibold ${tagColor} -mt-0.5`}>
-          BUILT ON TRUST • SINCE 1992
+        <span className={`font-brand text-[8.5px] sm:text-[9.5px] uppercase tracking-[0.22em] font-bold ${tagColor} mt-0.5 whitespace-nowrap`}>
+          EST. 1992 • KERALA
         </span>
       </div>
     </div>

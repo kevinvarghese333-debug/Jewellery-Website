@@ -49,6 +49,30 @@
         "paymentMethod": { "type": "string" }
       },
       "required": ["orderNumber", "grandTotal", "status", "createdAt"]
+    },
+    "ProductReview": {
+      "title": "ProductReview",
+      "description": "Verified customer reviews and ratings for jewellery pieces",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "productId": { "type": "string" },
+        "userId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorEmail": { "type": "string" },
+        "location": { "type": "string" },
+        "rating": { "type": "number" },
+        "title": { "type": "string" },
+        "comment": { "type": "string" },
+        "date": { "type": "string" },
+        "verifiedBuyer": { "type": "boolean" },
+        "purityBought": { "type": "string" },
+        "occasion": { "type": "string" },
+        "helpfulCount": { "type": "number" },
+        "recommended": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["productId", "authorName", "rating", "title", "comment"]
     }
   },
   "firestore": {
@@ -59,6 +83,10 @@
     "/orders/{orderId}": {
       "schema": "OrderRecord",
       "description": "Orders collection accessible by the placing user"
+    },
+    "/reviews/{reviewId}": {
+      "schema": "ProductReview",
+      "description": "Customer reviews and ratings for jewellery pieces"
     }
   }
 }

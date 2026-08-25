@@ -10,8 +10,8 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
     <footer className="bg-[#f2e5e6] text-[#201a1b] border-t border-[#d7c1c4] mt-20 pt-16 pb-8 relative">
       <div className="max-w-7xl mx-auto px-6 md:px-12 grid grid-cols-1 md:grid-cols-4 gap-10">
         {/* Brand Column */}
-        <div className="col-span-1 md:col-span-1 flex flex-col space-y-4">
-          <Logo variant="stacked" size="md" />
+        <div className="col-span-1 md:col-span-1 flex flex-col space-y-4 items-start">
+          <Logo variant="horizontal" size="md" />
           <p className="font-sans text-xs text-[#524346] leading-relaxed max-w-xs mt-2">
             Excellence in Craftsmanship since 1992. Dedicated to preserving the heritage of South Indian jewelry arts through uncompromising quality, pure 22K/916 gold, and transparent pricing.
           </p>

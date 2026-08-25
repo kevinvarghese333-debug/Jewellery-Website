@@ -97,7 +97,9 @@ export interface CampaignMetrics {
 export interface ProductReview {
   id: string;
   productId: string;
+  userId?: string;
   authorName: string;
+  authorEmail?: string;
   location?: string;
   rating: number; // 1 to 5
   title: string;
@@ -105,7 +107,10 @@ export interface ProductReview {
   date: string;
   verifiedBuyer: boolean;
   purityBought?: string;
+  occasion?: string;
+  recommended?: boolean;
   helpfulCount: number;
+  createdAt?: string;
 }
 
 export interface UserProfile {

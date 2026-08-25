@@ -8,6 +8,9 @@ interface HomeViewProps {
   onSelectProduct: (product: Product) => void;
   onOpenAppointmentModal: (product?: Product) => void;
   goldRate: number;
+  onToggleWishlist?: (product: Product) => void;
+  wishlistIds?: string[];
+  onAddToCart?: (product: Product) => void;
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({
@@ -15,6 +18,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onSelectProduct,
   onOpenAppointmentModal,
   goldRate,
+  onToggleWishlist,
+  wishlistIds = [],
+  onAddToCart,
 }) => {
   const bestsellers = PRODUCTS.filter(p => p.isBestseller);
   const newArrivals = PRODUCTS.filter(p => p.isNewArrival || !p.isBestseller).slice(0, 4);
@@ -32,19 +38,24 @@ export const HomeView: React.FC<HomeViewProps> = ({
         <div className="absolute inset-0 bg-gradient-to-r from-[#1C1410] via-[#370617]/80 to-transparent" />
 
         <div className="relative z-10 max-w-2xl px-8 md:px-16 text-white space-y-6">
-          <div className="inline-flex items-center gap-2 bg-[#B88A44]/20 backdrop-blur-md border border-[#B88A44]/40 px-3 py-1 rounded-full text-[#D4AF6A] text-xs font-sans uppercase tracking-[0.2em] font-semibold">
+          <div className="inline-flex items-center gap-2 bg-[#B88A44]/20 backdrop-blur-md border border-[#B88A44]/40 px-3.5 py-1 rounded-full text-[#D4AF6A] text-xs font-brand uppercase tracking-[0.2em] font-semibold">
             <span>◆</span>
-            <span>BUILT ON TRUST • SINCE 1992</span>
+            <span>EST. 1992 • KERALA</span>
           </div>
 
           <h1 className="font-serif-display text-4xl md:text-6xl lg:text-7xl font-bold leading-[1.1] text-[#FAF6F0] tracking-tight">
-            Jewellery That Lives <br />
-            <span className="italic font-normal text-[#D4AF6A]">Beyond Generations</span>
+            Crafted for Today. <br />
+            <span className="italic font-normal text-[#D4AF6A]">Cherished for Generations</span>
           </h1>
 
-          <p className="font-sans text-sm md:text-base text-[#F0EBE4] leading-relaxed max-w-lg font-light">
-            South India's premier destination for certified 22K/916 hallmarked temple jewellery, grand bridal trousseaus, and handcrafted gold art.
-          </p>
+          <div className="space-y-2">
+            <p className="font-brand text-sm md:text-base text-[#FAF6F0] leading-relaxed max-w-xl font-medium">
+              South India's premier destination for Timeless gold jewellery, crafted with uncompromising purity and care for every important moment.
+            </p>
+            <p className="font-brand text-xs md:text-sm text-[#D9CFC4] leading-relaxed max-w-lg font-normal">
+              Since 1992, crafted with certified purity, timeless design, and a commitment to doing things right.
+            </p>
+          </div>
 
           <div className="flex flex-wrap gap-4 pt-2">
             <button
@@ -242,9 +253,31 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   {product.purityBadge}
                 </span>
                 {product.isBestseller && (
-                  <span className="absolute top-3 right-3 bg-[#B88A44] text-white text-[10px] uppercase font-sans tracking-widest font-bold px-2 py-1 rounded shadow-sm">
+                  <span className="absolute top-3 right-12 bg-[#B88A44] text-white text-[10px] uppercase font-sans tracking-widest font-bold px-2 py-1 rounded shadow-sm">
                     Bestseller
                   </span>
+                )}
+                {onToggleWishlist && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleWishlist(product);
+                    }}
+                    className={`absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                      wishlistIds.includes(product.id)
+                        ? 'bg-[#ba1a1a] text-white shadow-md'
+                        : 'bg-white/90 text-[#847375] hover:text-[#ba1a1a] shadow-sm hover:scale-110'
+                    }`}
+                    title={wishlistIds.includes(product.id) ? 'Remove from Wishlist' : 'Add to Wishlist'}
+                    aria-label={wishlistIds.includes(product.id) ? 'Remove from Wishlist' : 'Add to Wishlist'}
+                  >
+                    <span
+                      className="material-symbols-outlined text-base leading-none"
+                      data-weight={wishlistIds.includes(product.id) ? 'fill' : undefined}
+                    >
+                      favorite
+                    </span>
+                  </button>
                 )}
               </div>
 

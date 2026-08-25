@@ -7,6 +7,8 @@ import { GoldRateCalculatorModal } from './components/GoldRateCalculatorModal';
 import { SearchModal } from './components/SearchModal';
 import { AppointmentModal } from './components/AppointmentModal';
 import { UserLoginModal } from './components/UserLoginModal';
+import { ToastContainer } from './components/ToastContainer';
+import { ToastProvider, useToast } from './context/ToastContext';
 import { HomeView } from './views/HomeView';
 import { CatalogView } from './views/CatalogView';
 import { PdpView } from './views/PdpView';
@@ -23,7 +25,8 @@ import {
 } from './data/firebaseAuthService';
 import { getStoredUserProfile } from './data/userSession';
 
-export function App() {
+function AppContent() {
+  const { notifyAddToCart, notifyWishlistToggle, notifyGoldRateUpdate, notifyInfo } = useToast();
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(getStoredUserProfile());
   const getInitialView = (): ActiveView => {
     if (typeof window !== 'undefined') {
@@ -139,7 +142,7 @@ export function App() {
             setWishlistIds((prev) => Array.from(new Set([...prev, ...cloudWishlist])));
           }
         } catch (e) {
-          console.warn('Error fetching cloud wishlist:', e);
+          console.error('Error merging cloud wishlist:', e);
         }
       }
     });
@@ -161,11 +164,15 @@ export function App() {
   }, []);
 
   const setGoldRate = (rate: number) => {
+    const oldRate = goldRate;
     setGoldRateState(rate);
     try {
       localStorage.setItem('kavitha_live_gold_rate', String(rate));
     } catch (e) {
       console.error(e);
+    }
+    if (oldRate !== rate) {
+      notifyGoldRateUpdate(rate, oldRate);
     }
   };
 
@@ -194,7 +201,7 @@ export function App() {
   };
 
   // Add to Cart
-  const handleAddToCart = (product: Product, purity: PurityType = '22K', quantity: number = 1) => {
+  const handleAddToCart = (product: Product, purity: PurityType = '22K', quantity: number = 1, shouldNavigate: boolean = false) => {
     setCart((prev) => {
       const existingIndex = prev.findIndex(
         (item) => item.product.id === product.id && item.selectedPurity === purity
@@ -207,8 +214,14 @@ export function App() {
         return [...prev, { product, selectedPurity: purity, quantity }];
       }
     });
-    setActiveView('cart');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // Fire global rich toast
+    notifyAddToCart(product, purity, quantity, goldRate);
+
+    if (shouldNavigate) {
+      setActiveView('cart');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   // Update Cart Quantity
@@ -226,7 +239,11 @@ export function App() {
 
   // Remove Cart Item
   const handleRemoveItem = (productId: string) => {
+    const item = cart.find(i => i.product.id === productId);
     setCart((prev) => prev.filter((item) => item.product.id !== productId));
+    if (item) {
+      notifyInfo('Item Removed', `${item.product.name} was removed from your bag.`);
+    }
   };
 
   // Clear Cart
@@ -237,15 +254,19 @@ export function App() {
     } catch (e) {
       console.error(e);
     }
+    notifyInfo('Bag Cleared', 'All items have been removed from your shopping bag.');
   };
 
   // Wishlist Toggle
   const handleToggleWishlist = (product: Product) => {
-    setWishlistIds((prev) =>
-      prev.includes(product.id)
+    setWishlistIds((prev) => {
+      const exists = prev.includes(product.id);
+      const updated = exists
         ? prev.filter((id) => id !== product.id)
-        : [...prev, product.id]
-    );
+        : [...prev, product.id];
+      notifyWishlistToggle(product, !exists);
+      return updated;
+    });
   };
 
   // Open Appointment modal
@@ -294,6 +315,9 @@ export function App() {
             onSelectProduct={handleSelectProduct}
             onOpenAppointmentModal={handleOpenAppointmentModal}
             goldRate={goldRate}
+            onToggleWishlist={handleToggleWishlist}
+            wishlistIds={wishlistIds}
+            onAddToCart={handleAddToCart}
           />
         )}
 
@@ -315,6 +339,10 @@ export function App() {
             onOpenAppointmentModal={handleOpenAppointmentModal}
             onNavigate={handleNavigate}
             goldRate={goldRate}
+            onToggleWishlist={handleToggleWishlist}
+            isWishlisted={wishlistIds.includes(selectedProduct.id)}
+            currentUser={currentUser}
+            onOpenAuthModal={handleOpenAuthModal}
           />
         )}
 
@@ -395,7 +423,18 @@ export function App() {
         wishlistCount={wishlistIds.length}
         initialTab={userAuthInitialTab}
       />
+
+      {/* Global Toast Notification Overlay */}
+      <ToastContainer onNavigate={handleNavigate} />
     </div>
+  );
+}
+
+export function App() {
+  return (
+    <ToastProvider>
+      <AppContent />
+    </ToastProvider>
   );
 }
 
