@@ -152,8 +152,8 @@ export const PdpView: React.FC<PdpViewProps> = ({
 
             {/* Top Badges */}
             <div className="absolute top-4 left-4 flex flex-col gap-2 pointer-events-none z-10">
-              <span className="bg-[#370617] text-white font-data text-xs px-3 py-1 rounded font-bold shadow-sm">
-                {selectedPurity} / 916 Hallmark
+              <span className="bg-[#370617] text-white font-brand text-xs px-3 py-1 rounded font-bold shadow-sm">
+                {selectedPurity} • 916 BIS Hallmark
               </span>
               {product.isBestseller && (
                 <span className="bg-[#B88A44] text-white font-sans text-[10px] uppercase tracking-widest px-2.5 py-0.5 rounded font-bold">
@@ -287,20 +287,20 @@ export const PdpView: React.FC<PdpViewProps> = ({
                 <label className="block text-xs font-sans uppercase tracking-wider text-[#370617] font-semibold mb-2">
                   Select Purity Standard
                 </label>
-                <div className="grid grid-cols-2 gap-3">
-                  {(['22K', '18K'] as PurityType[]).map((p) => (
+                <div className="grid grid-cols-3 gap-2">
+                  {(['22K', '18K', '14K'] as PurityType[]).map((p) => (
                     <button
                       key={p}
                       onClick={() => setSelectedPurity(p)}
-                      className={`py-2.5 px-3 rounded-lg border text-xs font-sans font-bold flex justify-between items-center transition-all ${
+                      className={`py-2.5 px-2 rounded-lg border text-xs font-brand font-bold flex flex-col items-center justify-center gap-0.5 transition-all ${
                         selectedPurity === p
                           ? 'bg-[#370617] text-white border-[#370617] shadow-sm'
                           : 'bg-white text-[#524346] border-[#d7c1c4] hover:bg-[#f2e5e6]'
                       }`}
                     >
-                      <span>{p} Hallmarked</span>
-                      <span className="font-data text-[11px]">
-                        {p === '22K' ? '916 Fine' : '750 Fine'}
+                      <span>{p} Gold</span>
+                      <span className="font-data text-[10px] opacity-90">
+                        {p === '22K' ? '916 BIS' : p === '18K' ? '750 BIS' : '585 BIS'}
                       </span>
                     </button>
                   ))}

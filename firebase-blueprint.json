@@ -73,9 +73,52 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["productId", "authorName", "rating", "title", "comment"]
+    },
+    "StoreConfig": {
+      "title": "StoreConfig",
+      "description": "Global store bullion rates and campaign configurations",
+      "type": "object",
+      "properties": {
+        "rate22k": { "type": "number" },
+        "rate18k": { "type": "number" },
+        "rate14k": { "type": "number" },
+        "silverRate": { "type": "number" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["rate22k"]
+    },
+    "AppointmentLead": {
+      "title": "AppointmentLead",
+      "description": "Customer consultation bookings, video call leads, and showroom visit requests",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "city": { "type": "string" },
+        "location": { "type": "string" },
+        "type": { "type": "string", "enum": ["video", "showroom"] },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "selectedProductId": { "type": "string" },
+        "selectedProductName": { "type": "string" },
+        "selectedProductPurity": { "type": "string" },
+        "notes": { "type": "string" },
+        "status": { "type": "string", "enum": ["NEW", "CONTACTED", "CONFIRMED", "COMPLETED", "CANCELLED"] },
+        "source": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "staffNotes": { "type": "string" },
+        "syncedToGoogleSheets": { "type": "boolean" }
+      },
+      "required": ["name", "phone", "location", "type", "date", "time", "status", "createdAt"]
     }
   },
   "firestore": {
+    "/app_config/{configId}": {
+      "schema": "StoreConfig",
+      "description": "Store live gold bullion rates and settings"
+    },
     "/users/{userId}": {
       "schema": "UserProfile",
       "description": "User profile with synchronized wishlist and preferences"
@@ -87,6 +130,10 @@
     "/reviews/{reviewId}": {
       "schema": "ProductReview",
       "description": "Customer reviews and ratings for jewellery pieces"
+    },
+    "/appointments/{appointmentId}": {
+      "schema": "AppointmentLead",
+      "description": "Customer consultation and showroom appointment leads with Google Sheets webhook synchronization"
     }
   }
 }

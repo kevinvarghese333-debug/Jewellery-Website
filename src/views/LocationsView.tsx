@@ -39,7 +39,7 @@ export const LocationsView: React.FC<LocationsViewProps> = ({
           <div className="relative h-64 rounded-xl overflow-hidden bg-[#1C1410]">
             <img
               src="https://lh3.googleusercontent.com/aida-public/AB6AXuBNLh46ypsmeAoMzqbRHxfVzqKXiAeT3DJmOIqv2MYbjEHqIg4_zywoaO7nIkOsB1ZMlDEf2zZGyntrBdH4YoP-vNzRrrNCycjKYuZO9t8zPzGWfEfQS8UeHn4Hqxb8HbshjdCUXd4knT0GdTcdYdzuH9fDsawxTXuqp25PWn-JH3zGVgrJUosytju5dWEbRNss654TC0tG0kWlMneNDQSIaz7roAjq9FFG2AHxSXWyOtf-plDFNuSQwg"
-              alt="Kavitha Flagship Showroom T. Nagar"
+              alt="Kavitha Flagship Showroom Cherai, Ernakulam"
               className="w-full h-full object-cover opacity-85"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-[#1C1410]/90 via-transparent to-transparent" />

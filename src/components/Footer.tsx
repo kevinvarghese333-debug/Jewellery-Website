@@ -13,7 +13,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
         <div className="col-span-1 md:col-span-1 flex flex-col space-y-4 items-start">
           <Logo variant="horizontal" size="md" />
           <p className="font-sans text-xs text-[#524346] leading-relaxed max-w-xs mt-2">
-            Excellence in Craftsmanship since 1992. Dedicated to preserving the heritage of South Indian jewelry arts through uncompromising quality, pure 22K/916 gold, and transparent pricing.
+            Excellence in Craftsmanship since 1992. Dedicated to preserving the heritage of South Indian jewelry arts through uncompromising quality, certified 22K/18K/14K 916 BIS Hallmark gold, and transparent pricing.
           </p>
           <div className="flex space-x-4 pt-2 text-[#370617]">
             <a aria-label="Location" href="#locations" onClick={() => onNavigate?.('locations')} className="hover:text-[#B88A44] transition-colors">
@@ -75,11 +75,17 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
             <span>Developer Handover Spec (PDF)</span>
           </a>
-          <button onClick={() => onNavigate?.('catalog')} className="text-left font-sans text-xs text-[#524346] hover:text-[#370617] hover:underline transition-all">
+          <button onClick={() => onNavigate?.('necklaces')} className="text-left font-sans text-xs text-[#524346] hover:text-[#370617] hover:underline transition-all">
             Gold Necklaces (Haaram & Chokers)
           </button>
-          <button onClick={() => onNavigate?.('catalog')} className="text-left font-sans text-xs text-[#524346] hover:text-[#370617] hover:underline transition-all">
-            Heritage Temple Jhumkas
+          <button onClick={() => onNavigate?.('earrings')} className="text-left font-sans text-xs text-[#524346] hover:text-[#370617] hover:underline transition-all">
+            Earrings & Temple Jhumkas
+          </button>
+          <button onClick={() => onNavigate?.('bangles')} className="text-left font-sans text-xs text-[#524346] hover:text-[#370617] hover:underline transition-all">
+            Bangles & Kadas
+          </button>
+          <button onClick={() => onNavigate?.('bridal')} className="text-left font-sans text-xs text-[#524346] hover:text-[#370617] hover:underline transition-all">
+            Bridal Trousseau Suites
           </button>
           <button onClick={() => onNavigate?.('locations')} className="text-left font-sans text-xs text-[#524346] hover:text-[#370617] hover:underline transition-all">
             Showroom Locator
@@ -111,7 +117,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
       {/* Bottom Bar */}
       <div className="max-w-7xl mx-auto px-6 md:px-12 mt-12 pt-6 border-t border-[#d7c1c4]/60 flex flex-col md:flex-row justify-between items-center text-center md:text-left gap-4">
         <p className="font-sans text-[11px] uppercase tracking-widest text-[#524346]">
-          © 2026 KAVITHA JEWELLERY. ALL RIGHTS RESERVED. BIS HALLMARKED 22K/916 GOLD.
+          © 2026 KAVITHA JEWELLERY. ALL RIGHTS RESERVED. 22K/18K/14K • 916 BIS HALLMARK GOLD.
         </p>
         <div className="flex items-center space-x-4 text-[#847375]">
           <span className="material-symbols-outlined text-xl" title="Insured Logistics">payments</span>

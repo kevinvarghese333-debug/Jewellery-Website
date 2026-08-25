@@ -28,5 +28,16 @@ service cloud.firestore {
       allow create: if request.auth != null;
       allow update: if request.auth != null;
     }
+
+    // Appointments & Lead Collection: Anyone can book a consultation; read/write enabled for lead management
+    match /appointments/{appointmentId} {
+      allow read, write: if true;
+    }
+
+    // Store settings, live bullion gold/silver rates and campaign parameters
+    match /app_config/{configId} {
+      allow read: if true;
+      allow write: if true;
+    }
   }
 }

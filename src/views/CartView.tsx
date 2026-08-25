@@ -233,7 +233,7 @@ export const CartView: React.FC<CartViewProps> = ({
           Your Shopping Bag is Empty
         </h2>
         <p className="font-sans text-xs text-[#524346] max-w-sm mx-auto">
-          Explore our certified 22K/916 gold chokers, haarams, bangles, and bridal collections.
+          Explore our certified 22K/18K/14K 916 BIS Hallmarked gold chokers, haarams, bangles, and bridal collections.
         </p>
         <button
           onClick={() => onNavigate('catalog')}
@@ -305,8 +305,8 @@ export const CartView: React.FC<CartViewProps> = ({
                     className="w-20 h-20 object-cover rounded-xl bg-[#fef0f1] border border-[#d7c1c4] shrink-0"
                   />
                   <div className="space-y-1">
-                    <span className="inline-block bg-[#370617] text-white text-[9px] font-data px-2 py-0.5 rounded font-bold">
-                      {item.selectedPurity} / 916 BIS Hallmark
+                    <span className="inline-block bg-[#370617] text-white text-[9px] font-brand px-2 py-0.5 rounded font-bold">
+                      {item.selectedPurity} • 916 BIS Hallmark
                     </span>
                     <h2 className="font-serif-display text-base font-bold text-[#370617]">
                       {item.product.name}

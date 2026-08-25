@@ -24,6 +24,11 @@ import {
   fetchWishlistFromFirestore 
 } from './data/firebaseAuthService';
 import { getStoredUserProfile } from './data/userSession';
+import { 
+  subscribeToGoldRates, 
+  getLocalCachedGoldRate, 
+  updateLiveBullionRatesInFirestore 
+} from './data/storeConfigService';
 
 function AppContent() {
   const { notifyAddToCart, notifyWishlistToggle, notifyGoldRateUpdate, notifyInfo } = useToast();
@@ -45,6 +50,38 @@ function AppContent() {
       // Check /onam or #onam or ?campaign or ?source
       if (path === '/onam' || hash === 'onam' || params.get('source') || params.get('campaign') || params.get('view') === 'onam') {
         return 'onam-campaign';
+      }
+      // Check /earrings or /earring or #earrings or #earring
+      if (path === '/earrings' || path === '/earring' || hash === 'earrings' || hash === 'earring' || params.get('view') === 'earrings' || params.has('earrings') || params.has('earring')) {
+        return 'earrings';
+      }
+      // Check /necklaces or /necklace or #necklaces or #necklace
+      if (path === '/necklaces' || path === '/necklace' || hash === 'necklaces' || hash === 'necklace' || params.get('view') === 'necklaces' || params.has('necklaces') || params.has('necklace')) {
+        return 'necklaces';
+      }
+      // Check /bangles or /bangle or #bangles or #bangle
+      if (path === '/bangles' || path === '/bangle' || hash === 'bangles' || hash === 'bangle' || params.get('view') === 'bangles' || params.has('bangles') || params.has('bangle')) {
+        return 'bangles';
+      }
+      // Check /bridal or #bridal or #trousseau
+      if (path === '/bridal' || hash === 'bridal' || hash === 'trousseau' || params.get('view') === 'bridal' || params.has('bridal')) {
+        return 'bridal';
+      }
+      // Check /catalog or #catalog
+      if (path === '/catalog' || hash === 'catalog' || params.get('view') === 'catalog' || params.has('catalog')) {
+        return 'catalog';
+      }
+      // Check /locations or #locations
+      if (path === '/locations' || hash === 'locations' || params.get('view') === 'locations') {
+        return 'locations';
+      }
+      // Check /wishlist or #wishlist
+      if (path === '/wishlist' || hash === 'wishlist' || params.get('view') === 'wishlist') {
+        return 'wishlist';
+      }
+      // Check /cart or #cart
+      if (path === '/cart' || hash === 'cart' || params.get('view') === 'cart') {
+        return 'cart';
       }
     }
     return 'home';
@@ -92,13 +129,17 @@ function AppContent() {
     return [PRODUCTS[1].id, PRODUCTS[2].id];
   });
 
-  const [goldRate, setGoldRateState] = useState<number>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('kavitha_live_gold_rate');
-      if (saved && !isNaN(Number(saved))) return Number(saved);
-    }
-    return CURRENT_GOLD_RATE_22K;
-  });
+  const [goldRate, setGoldRateState] = useState<number>(() => getLocalCachedGoldRate());
+
+  // Real-time synchronization of bullion gold rates from Firestore
+  useEffect(() => {
+    const unsubscribe = subscribeToGoldRates((rates) => {
+      if (rates.rate22k && rates.rate22k >= 5000) {
+        setGoldRateState(rates.rate22k);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Modals
   const [isGoldCalcOpen, setIsGoldCalcOpen] = useState(false);
@@ -166,11 +207,9 @@ function AppContent() {
   const setGoldRate = (rate: number) => {
     const oldRate = goldRate;
     setGoldRateState(rate);
-    try {
-      localStorage.setItem('kavitha_live_gold_rate', String(rate));
-    } catch (e) {
-      console.error(e);
-    }
+    updateLiveBullionRatesInFirestore(rate).catch((e) => {
+      console.error('Firestore rate update error:', e);
+    });
     if (oldRate !== rate) {
       notifyGoldRateUpdate(rate, oldRate);
     }
@@ -186,8 +225,24 @@ function AppContent() {
         window.history.pushState(null, '', '#staff');
       } else if (view === 'onam-campaign') {
         window.history.pushState(null, '', '#onam');
+      } else if (view === 'earrings') {
+        window.history.pushState(null, '', '#earrings');
+      } else if (view === 'necklaces') {
+        window.history.pushState(null, '', '#necklaces');
+      } else if (view === 'bangles') {
+        window.history.pushState(null, '', '#bangles');
+      } else if (view === 'bridal') {
+        window.history.pushState(null, '', '#bridal');
+      } else if (view === 'catalog') {
+        window.history.pushState(null, '', '#catalog');
+      } else if (view === 'locations') {
+        window.history.pushState(null, '', '#locations');
+      } else if (view === 'wishlist') {
+        window.history.pushState(null, '', '#wishlist');
+      } else if (view === 'cart') {
+        window.history.pushState(null, '', '#cart');
       } else if (view === 'home') {
-        window.history.pushState(null, '', window.location.pathname);
+        window.history.pushState(null, '', window.location.pathname.split('#')[0]);
       }
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -323,6 +378,55 @@ function AppContent() {
 
         {activeView === 'catalog' && (
           <CatalogView
+            categorySlug="catalog"
+            onSelectProduct={handleSelectProduct}
+            onToggleWishlist={handleToggleWishlist}
+            wishlistIds={wishlistIds}
+            onNavigate={handleNavigate}
+            goldRate={goldRate}
+            onAddToCart={handleAddToCart}
+          />
+        )}
+
+        {activeView === 'earrings' && (
+          <CatalogView
+            categorySlug="earrings"
+            onSelectProduct={handleSelectProduct}
+            onToggleWishlist={handleToggleWishlist}
+            wishlistIds={wishlistIds}
+            onNavigate={handleNavigate}
+            goldRate={goldRate}
+            onAddToCart={handleAddToCart}
+          />
+        )}
+
+        {activeView === 'necklaces' && (
+          <CatalogView
+            categorySlug="necklaces"
+            onSelectProduct={handleSelectProduct}
+            onToggleWishlist={handleToggleWishlist}
+            wishlistIds={wishlistIds}
+            onNavigate={handleNavigate}
+            goldRate={goldRate}
+            onAddToCart={handleAddToCart}
+          />
+        )}
+
+        {activeView === 'bangles' && (
+          <CatalogView
+            categorySlug="bangles"
+            onSelectProduct={handleSelectProduct}
+            onToggleWishlist={handleToggleWishlist}
+            wishlistIds={wishlistIds}
+            onNavigate={handleNavigate}
+            goldRate={goldRate}
+            onAddToCart={handleAddToCart}
+          />
+        )}
+
+        {activeView === 'bridal' && (
+          <CatalogView
+            categorySlug="bridal"
             onSelectProduct={handleSelectProduct}
             onToggleWishlist={handleToggleWishlist}
             wishlistIds={wishlistIds}

@@ -32,10 +32,17 @@ export const HomeView: React.FC<HomeViewProps> = ({
         <img
           src={ASSET_IMAGES.hero}
           alt="Kavitha Jewellery Heritage Model"
-          className="absolute inset-0 w-full h-full object-cover object-center opacity-65 mix-blend-luminosity scale-105 transition-transform duration-1000 hover:scale-100"
+          className="absolute inset-0 w-full h-full object-cover object-[center_20%] md:object-[right_15%] opacity-100 transition-transform duration-1000 hover:scale-105"
+          referrerPolicy="no-referrer"
+          onError={(e) => {
+            const target = e.currentTarget;
+            if (target.src !== ASSET_IMAGES.heroFallback) {
+              target.src = ASSET_IMAGES.heroFallback;
+            }
+          }}
         />
-        {/* Gradient Overlay for WCAG AA readability */}
-        <div className="absolute inset-0 bg-gradient-to-r from-[#1C1410] via-[#370617]/80 to-transparent" />
+        {/* Crisp Gradient Overlay for high-contrast typography without obscuring the jewellery model */}
+        <div className="absolute inset-0 bg-gradient-to-r from-[#1C1410] via-[#1C1410]/75 md:via-[#1C1410]/35 to-transparent pointer-events-none" />
 
         <div className="relative z-10 max-w-2xl px-8 md:px-16 text-white space-y-6">
           <div className="inline-flex items-center gap-2 bg-[#B88A44]/20 backdrop-blur-md border border-[#B88A44]/40 px-3.5 py-1 rounded-full text-[#D4AF6A] text-xs font-brand uppercase tracking-[0.2em] font-semibold">
@@ -75,18 +82,106 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
 
           {/* Quick Stats Pill */}
-          <div className="pt-6 border-t border-[#d7c1c4]/20 grid grid-cols-3 gap-4 text-left max-w-md">
+          <div className="pt-6 border-t border-[#d7c1c4]/20 grid grid-cols-3 gap-3 sm:gap-4 text-left max-w-lg">
             <div>
-              <span className="font-data font-bold text-lg text-[#D4AF6A]">22K / 916</span>
-              <span className="block text-[10px] text-[#A89C92] uppercase tracking-wider font-sans">BIS Hallmark</span>
+              <span className="font-data font-bold text-sm sm:text-base md:text-lg text-[#D4AF6A] block whitespace-nowrap">
+                22K/18K/14K
+              </span>
+              <span className="block text-[10px] text-[#A89C92] uppercase tracking-wider font-brand">
+                916 BIS Hallmark
+              </span>
             </div>
             <div>
-              <span className="font-data font-bold text-lg text-[#D4AF6A]">100%</span>
-              <span className="block text-[10px] text-[#A89C92] uppercase tracking-wider font-sans">Buyback Guarantee</span>
+              <span className="font-data font-bold text-sm sm:text-base md:text-lg text-[#D4AF6A] block whitespace-nowrap">
+                ₹{goldRate.toLocaleString()}<span className="text-xs font-normal text-[#F0EBE4]/80">/g</span>
+              </span>
+              <span className="block text-[10px] text-[#A89C92] uppercase tracking-wider font-brand">
+                22K Live Gold Rate
+              </span>
             </div>
             <div>
-              <span className="font-data font-bold text-lg text-[#D4AF6A]">₹{goldRate.toLocaleString()}</span>
-              <span className="block text-[10px] text-[#A89C92] uppercase tracking-wider font-sans">Live Gold Rate /g</span>
+              <span className="font-data font-bold text-sm sm:text-base md:text-lg text-[#D4AF6A] block whitespace-nowrap">
+                ₹{(goldRate * 8).toLocaleString()}
+              </span>
+              <span className="block text-[10px] text-[#A89C92] uppercase tracking-wider font-brand">
+                22K (8g / 1 Sovereign)
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 1.2 Dedicated Live Gold Rate Dashboard Strip */}
+      <section className="bg-[#FAF6F0] border-2 border-[#B88A44]/40 rounded-2xl p-5 sm:p-6 shadow-md relative overflow-hidden">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5">
+          {/* Header info */}
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-2 bg-[#10B981]/15 text-[#065F46] border border-[#10B981]/30 px-2.5 py-0.5 rounded-full text-[10px] font-brand uppercase tracking-wider font-bold">
+              <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse" />
+              <span>LIVE GOLD RATES TODAY • KERALA BULLION</span>
+            </div>
+            <h3 className="font-brand font-bold text-xl sm:text-2xl text-[#370617]">
+              Today's Certified Gold Rates
+            </h3>
+            <p className="font-brand text-xs text-[#6E5D60]">
+              Transparent, standardized gold bullion rates updated in real-time across all showrooms.
+            </p>
+          </div>
+
+          {/* Rate Cards Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full lg:w-auto">
+            {/* 22K 1 Gram */}
+            <div className="bg-[#ffffff] border border-[#B88A44]/30 rounded-xl p-3.5 shadow-2xs flex flex-col justify-between">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-brand font-bold text-[#875E26] uppercase tracking-wider">
+                  22K Gold (1g)
+                </span>
+                <span className="text-[9px] bg-[#B88A44]/15 text-[#875E26] px-1.5 py-0.5 rounded font-bold">
+                  916 BIS
+                </span>
+              </div>
+              <div className="mt-1">
+                <span className="font-data font-bold text-xl sm:text-2xl text-[#370617]">
+                  ₹{goldRate.toLocaleString()}
+                </span>
+                <span className="text-[10px] text-[#847375] block font-brand">per gram</span>
+              </div>
+            </div>
+
+            {/* 22K 8 Grams / 1 Sovereign */}
+            <div className="bg-[#370617] text-white border border-[#370617] rounded-xl p-3.5 shadow-sm flex flex-col justify-between relative overflow-hidden">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-brand font-bold text-[#D4AF6A] uppercase tracking-wider">
+                  22K Gold (8g)
+                </span>
+                <span className="text-[9px] bg-[#D4AF6A]/20 text-[#D4AF6A] px-1.5 py-0.5 rounded font-bold">
+                  1 Sovereign (Pavan)
+                </span>
+              </div>
+              <div className="mt-1">
+                <span className="font-data font-bold text-xl sm:text-2xl text-[#FAF6F0]">
+                  ₹{(goldRate * 8).toLocaleString()}
+                </span>
+                <span className="text-[10px] text-[#D9CFC4] block font-brand">per 8 grams</span>
+              </div>
+            </div>
+
+            {/* 18K 1 Gram */}
+            <div className="bg-[#ffffff] border border-[#B88A44]/30 rounded-xl p-3.5 shadow-2xs flex flex-col justify-between">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-brand font-bold text-[#875E26] uppercase tracking-wider">
+                  18K Gold (1g)
+                </span>
+                <span className="text-[9px] bg-[#847375]/15 text-[#524346] px-1.5 py-0.5 rounded font-bold">
+                  750 Hallmark
+                </span>
+              </div>
+              <div className="mt-1">
+                <span className="font-data font-bold text-xl sm:text-2xl text-[#370617]">
+                  ₹{Math.round(goldRate * (12335 / 15010)).toLocaleString()}
+                </span>
+                <span className="text-[10px] text-[#847375] block font-brand">per gram</span>
+              </div>
             </div>
           </div>
         </div>
@@ -138,78 +233,111 @@ export const HomeView: React.FC<HomeViewProps> = ({
           <DiamondRule align="center" />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {/* Large Feature: Bridal Trousseau */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-6">
+          {/* Feature 1: Bridal Trousseau */}
           <div 
-            onClick={() => onNavigate('catalog')}
-            className="md:col-span-2 relative min-h-[340px] rounded-xl overflow-hidden group cursor-pointer border border-[#d7c1c4] shadow-md"
+            onClick={() => onNavigate('bridal')}
+            className="relative min-h-[320px] rounded-2xl overflow-hidden group cursor-pointer border border-[#d7c1c4] shadow-md hover:shadow-xl transition-all duration-300"
           >
             <img
               src={ASSET_IMAGES.bridalCategory}
               alt="Bridal Trousseau Collection"
               className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#1C1410]/90 via-[#370617]/40 to-transparent" />
-            <div className="absolute bottom-6 left-6 right-6 text-white space-y-2">
+            <div className="absolute inset-0 bg-gradient-to-t from-[#1C1410]/95 via-[#370617]/50 to-transparent" />
+            <div className="absolute bottom-5 left-5 right-5 text-white space-y-1.5">
               <span className="inline-block bg-[#B88A44] text-white text-[10px] uppercase tracking-widest font-bold px-2 py-0.5 rounded">
-                Masterpiece Series
+                Masterpiece Suite
               </span>
-              <h3 className="font-serif-display text-2xl md:text-3xl font-bold text-[#FAF6F0]">
-                Bridal Trousseau & Haaram
+              <h3 className="font-serif-display text-xl sm:text-2xl font-bold text-[#FAF6F0]">
+                Bridal Trousseau
               </h3>
-              <p className="font-sans text-xs text-[#F0EBE4] max-w-sm font-light">
-                Grand multi-layered necklaces, Tanjore motif Haarams, and heirloom bridal gold sets.
+              <p className="font-sans text-xs text-[#F0EBE4] font-light line-clamp-2">
+                Grand multi-layered Haarams, Tanjore suites, and heirloom bridal gold sets.
               </p>
-              <span className="inline-flex items-center gap-1 text-xs font-sans uppercase tracking-widest text-[#D4AF6A] font-semibold pt-1 group-hover:underline">
-                View Collection <span className="material-symbols-outlined text-sm">chevron_right</span>
+              <span className="inline-flex items-center gap-1 text-xs font-sans uppercase tracking-widest text-[#D4AF6A] font-bold pt-1 group-hover:underline">
+                Explore Bridal <span className="material-symbols-outlined text-sm">chevron_right</span>
               </span>
             </div>
           </div>
 
-          {/* Category: Necklaces & Chokers */}
+          {/* Feature 2: Necklaces & Chokers */}
           <div 
-            onClick={() => onNavigate('catalog')}
-            className="relative min-h-[340px] rounded-xl overflow-hidden group cursor-pointer border border-[#d7c1c4] shadow-md"
+            onClick={() => onNavigate('necklaces')}
+            className="relative min-h-[320px] rounded-2xl overflow-hidden group cursor-pointer border border-[#d7c1c4] shadow-md hover:shadow-xl transition-all duration-300"
           >
             <img
               src={ASSET_IMAGES.necklacesCategory}
               alt="Gold Necklaces & Chokers"
               className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#1C1410]/90 via-transparent to-transparent" />
-            <div className="absolute bottom-6 left-6 right-6 text-white space-y-1">
-              <h3 className="font-serif-display text-xl font-bold text-[#FAF6F0]">
-                Chokers & Layered Chains
+            <div className="absolute inset-0 bg-gradient-to-t from-[#1C1410]/95 via-[#370617]/50 to-transparent" />
+            <div className="absolute bottom-5 left-5 right-5 text-white space-y-1.5">
+              <span className="inline-block bg-[#370617] border border-[#B88A44] text-[#D4AF6A] text-[10px] uppercase tracking-widest font-bold px-2 py-0.5 rounded">
+                22K 916 Hallmark
+              </span>
+              <h3 className="font-serif-display text-xl sm:text-2xl font-bold text-[#FAF6F0]">
+                Necklaces & Haarams
               </h3>
-              <p className="font-sans text-xs text-[#F0EBE4] font-light">
-                From temple antique chokers to modern layered 22K chains.
+              <p className="font-sans text-xs text-[#F0EBE4] font-light line-clamp-2">
+                From temple antique chokers to Kasu Malas and modern layered chains.
               </p>
-              <span className="inline-flex items-center gap-1 text-xs font-sans uppercase tracking-widest text-[#D4AF6A] font-semibold pt-1 group-hover:underline">
-                Shop Chokers <span className="material-symbols-outlined text-sm">chevron_right</span>
+              <span className="inline-flex items-center gap-1 text-xs font-sans uppercase tracking-widest text-[#D4AF6A] font-bold pt-1 group-hover:underline">
+                Shop Necklaces <span className="material-symbols-outlined text-sm">chevron_right</span>
               </span>
             </div>
           </div>
 
-          {/* Category: Heritage Earrings & Jhumkas */}
+          {/* Feature 3: Heritage Earrings & Jhumkas */}
           <div 
-            onClick={() => onNavigate('catalog')}
-            className="relative min-h-[340px] rounded-xl overflow-hidden group cursor-pointer border border-[#d7c1c4] shadow-md"
+            onClick={() => onNavigate('earrings')}
+            className="relative min-h-[320px] rounded-2xl overflow-hidden group cursor-pointer border border-[#d7c1c4] shadow-md hover:shadow-xl transition-all duration-300"
           >
             <img
               src={ASSET_IMAGES.earringsCategory}
               alt="Heritage Earrings & Jhumkas"
               className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#1C1410]/90 via-transparent to-transparent" />
-            <div className="absolute bottom-6 left-6 right-6 text-white space-y-1">
-              <h3 className="font-serif-display text-xl font-bold text-[#FAF6F0]">
-                Temple Earrings & Jhumkas
+            <div className="absolute inset-0 bg-gradient-to-t from-[#1C1410]/95 via-[#370617]/50 to-transparent" />
+            <div className="absolute bottom-5 left-5 right-5 text-white space-y-1.5">
+              <span className="inline-block bg-[#370617] border border-[#B88A44] text-[#D4AF6A] text-[10px] uppercase tracking-widest font-bold px-2 py-0.5 rounded">
+                Earrings Collection
+              </span>
+              <h3 className="font-serif-display text-xl sm:text-2xl font-bold text-[#FAF6F0]">
+                Earrings & Jhumkas
               </h3>
-              <p className="font-sans text-xs text-[#F0EBE4] font-light">
-                Intricate umbrella filigree with dangling micro-gold pearls.
+              <p className="font-sans text-xs text-[#F0EBE4] font-light line-clamp-2">
+                Intricate umbrella filigree, Chandbalis, Sui-Dhagas, and everyday studs.
               </p>
-              <span className="inline-flex items-center gap-1 text-xs font-sans uppercase tracking-widest text-[#D4AF6A] font-semibold pt-1 group-hover:underline">
+              <span className="inline-flex items-center gap-1 text-xs font-sans uppercase tracking-widest text-[#D4AF6A] font-bold pt-1 group-hover:underline">
                 Shop Earrings <span className="material-symbols-outlined text-sm">chevron_right</span>
+              </span>
+            </div>
+          </div>
+
+          {/* Feature 4: Bangles & Kadas */}
+          <div 
+            onClick={() => onNavigate('bangles')}
+            className="relative min-h-[320px] rounded-2xl overflow-hidden group cursor-pointer border border-[#d7c1c4] shadow-md hover:shadow-xl transition-all duration-300"
+          >
+            <img
+              src={ASSET_IMAGES.banglesCategory}
+              alt="Gold Bangles & Kadas"
+              className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#1C1410]/95 via-[#370617]/50 to-transparent" />
+            <div className="absolute bottom-5 left-5 right-5 text-white space-y-1.5">
+              <span className="inline-block bg-[#370617] border border-[#B88A44] text-[#D4AF6A] text-[10px] uppercase tracking-widest font-bold px-2 py-0.5 rounded">
+                Bangles & Kadas
+              </span>
+              <h3 className="font-serif-display text-xl sm:text-2xl font-bold text-[#FAF6F0]">
+                Bangles & Kadas
+              </h3>
+              <p className="font-sans text-xs text-[#F0EBE4] font-light line-clamp-2">
+                Royal lion-head Kadas, stacked 4-piece sets, and lightweight filigree bangles.
+              </p>
+              <span className="inline-flex items-center gap-1 text-xs font-sans uppercase tracking-widest text-[#D4AF6A] font-bold pt-1 group-hover:underline">
+                Shop Bangles <span className="material-symbols-outlined text-sm">chevron_right</span>
               </span>
             </div>
           </div>
@@ -339,7 +467,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <ul className="space-y-2.5 font-sans text-xs text-[#370617] pt-2">
               <li className="flex items-center gap-2">
                 <span className="text-[#B88A44]">◆</span>
-                <span><strong>100% BIS 22K/916 Hallmarked</strong> purity tested with laser precision.</span>
+                <span><strong>100% BIS 22K/18K/14K 916 Hallmarked</strong> purity tested with laser precision.</span>
               </li>
               <li className="flex items-center gap-2">
                 <span className="text-[#B88A44]">◆</span>
@@ -373,10 +501,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 <span className="material-symbols-outlined text-[#B88A44] text-xl">workspace_premium</span>
                 <div>
                   <span className="font-serif-display font-bold text-[#370617] block">Master Artisan Atelier</span>
-                  <span className="text-[10px] text-[#524346] font-sans">T. Nagar, Chennai</span>
+                  <span className="text-[10px] text-[#524346] font-sans">Cherai, Kerala</span>
                 </div>
               </div>
-              <span className="font-data text-[11px] font-bold text-[#370617]">22K / 916</span>
+              <span className="font-data text-[11px] font-bold text-[#370617]">22K / 18K / 14K • 916 BIS</span>
             </div>
           </div>
         </div>

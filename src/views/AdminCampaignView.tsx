@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ActiveView, OnamCoupon } from '../types';
 import { 
   getStoredCoupons, 
@@ -14,6 +14,10 @@ import { AdminLogin } from '../components/AdminLogin';
 import { getDltConfig, saveDltConfig, sendDltSmsOtp, BsnlDltConfig } from '../data/dltSmsConfig';
 import { generateAndDownloadClientSidePdf } from '../utils/generateHandoverPdf';
 import { Logo } from '../components/Logo';
+import { updateLiveBullionRatesInFirestore } from '../data/storeConfigService';
+import { getGoldRateForPurity } from '../data/products';
+import { AdminProductManager } from '../components/AdminProductManager';
+import { AdminAppointmentsManager } from '../components/AdminAppointmentsManager';
 
 interface AdminCampaignViewProps {
   onNavigate: (view: ActiveView) => void;
@@ -26,11 +30,15 @@ export const AdminCampaignView: React.FC<AdminCampaignViewProps> = ({
   goldRate, 
   setGoldRate 
 }) => {
-  // Admin authentication state
+  // Admin authentication state - strictly protected via session
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
-      return sessionStorage.getItem('kavitha_admin_authenticated') === 'true' ||
-             localStorage.getItem('kavitha_admin_remember') === 'true';
+      try {
+        localStorage.removeItem('kavitha_admin_remember');
+      } catch (e) {
+        console.error(e);
+      }
+      return sessionStorage.getItem('kavitha_admin_authenticated') === 'true';
     }
     return false;
   });
@@ -44,6 +52,14 @@ export const AdminCampaignView: React.FC<AdminCampaignViewProps> = ({
   const [newGoldRate, setNewGoldRate] = useState<number>(goldRate);
   const [silverRate, setSilverRate] = useState<number>(98);
   const [rateUpdatedNotice, setRateUpdatedNotice] = useState<boolean>(false);
+  const [isUpdatingRate, setIsUpdatingRate] = useState<boolean>(false);
+
+  // Sync state if gold rate is updated from cloud
+  useEffect(() => {
+    if (goldRate > 0) {
+      setNewGoldRate(goldRate);
+    }
+  }, [goldRate]);
 
   // Campaign Rules & Config states
   const [campaignStatus, setCampaignStatus] = useState<'LIVE' | 'PAUSED' | 'UPCOMING'>('LIVE');
@@ -83,6 +99,9 @@ export const AdminCampaignView: React.FC<AdminCampaignViewProps> = ({
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
+  // Admin Navigation Tabs
+  const [activeAdminTab, setActiveAdminTab] = useState<'leads' | 'rates_inventory' | 'onam_campaign' | 'dlt_sms'>('leads');
+
   const handleSaveDltConfig = (e: React.FormEvent) => {
     e.preventDefault();
     saveDltConfig(dltConfig);
@@ -109,16 +128,31 @@ export const AdminCampaignView: React.FC<AdminCampaignViewProps> = ({
   const handleLogout = () => {
     setIsAuthenticated(false);
     sessionStorage.removeItem('kavitha_admin_authenticated');
-    localStorage.removeItem('kavitha_admin_remember');
+    try {
+      localStorage.removeItem('kavitha_admin_remember');
+    } catch (e) {
+      console.error(e);
+    }
   };
 
-  // Update Live Store Rates
-  const handleUpdateGoldRate = (e: React.FormEvent) => {
+  // Update Live Store Rates and Broadcast to Firestore
+  const handleUpdateGoldRate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newGoldRate > 0) {
-      setGoldRate(newGoldRate);
-      setRateUpdatedNotice(true);
-      setTimeout(() => setRateUpdatedNotice(false), 4000);
+      setIsUpdatingRate(true);
+      try {
+        await updateLiveBullionRatesInFirestore(newGoldRate, silverRate);
+        setGoldRate(newGoldRate);
+        setRateUpdatedNotice(true);
+        setTimeout(() => setRateUpdatedNotice(false), 5000);
+      } catch (err) {
+        console.error('Error updating live rate to cloud:', err);
+        setGoldRate(newGoldRate);
+        setRateUpdatedNotice(true);
+        setTimeout(() => setRateUpdatedNotice(false), 5000);
+      } finally {
+        setIsUpdatingRate(false);
+      }
     }
   };
 
@@ -278,13 +312,13 @@ export const AdminCampaignView: React.FC<AdminCampaignViewProps> = ({
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-[#4E4C4B]/40 pb-6">
           <div>
             <span className="text-xs uppercase tracking-[0.2em] text-[#B88A44] font-semibold">
-              REAL-TIME CAMPAIGN CONTROL CENTER
+              KAVITHA JEWELLERY CHERAI
             </span>
             <h1 className="font-serif-display text-3xl font-bold text-[#ECEAE2] mt-0.5">
-              Onam Surprise 2026 Control Center
+              Master Store & Lead Management Console
             </h1>
             <p className="font-sans text-xs text-[#ECEAE2]/70 mt-1">
-              Active Window: <strong>15 August 2026 – 30 September 2026</strong>
+              Active Window: <strong>Onam 2026 Season • 15 August – 30 September 2026</strong>
             </p>
           </div>
 
@@ -324,67 +358,175 @@ export const AdminCampaignView: React.FC<AdminCampaignViewProps> = ({
           </div>
         </div>
 
-        {/* ========================================================= */}
-        {/* SECTION 1: CAMPAIGN CONFIG & SCHEDULING CONTROLS */}
-        {/* ========================================================= */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* Gold & Silver Rate Controller */}
-          <div className="bg-[#20221C] p-6 rounded-2xl border border-[#C7E24E]/30 space-y-4 shadow-xl">
-            <div className="flex justify-between items-center border-b border-[#4E4C4B]/40 pb-3">
-              <div>
-                <span className="text-[10px] uppercase tracking-widest text-[#C7E24E] font-bold">STORE RATES</span>
-                <h3 className="font-serif-display text-lg font-bold text-[#ECEAE2]">Gold & Silver Rates</h3>
+        {/* Admin Navigation Tabs */}
+        <div className="flex flex-wrap items-center gap-2.5 border-b border-[#4E4C4B]/60 pb-3">
+          <button
+            onClick={() => setActiveAdminTab('leads')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all ${
+              activeAdminTab === 'leads'
+                ? 'bg-[#C7E24E] text-[#070A0D] shadow-md ring-2 ring-[#C7E24E]/40'
+                : 'bg-[#20221C] text-[#ECEAE2]/80 hover:text-white hover:bg-[#2a2d24]'
+            }`}
+          >
+            <span className="material-symbols-outlined text-base">table_chart</span>
+            <span>Leads & Appointments (Google Sheets)</span>
+          </button>
+
+          <button
+            onClick={() => setActiveAdminTab('rates_inventory')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all ${
+              activeAdminTab === 'rates_inventory'
+                ? 'bg-[#C7E24E] text-[#070A0D] shadow-md ring-2 ring-[#C7E24E]/40'
+                : 'bg-[#20221C] text-[#ECEAE2]/80 hover:text-white hover:bg-[#2a2d24]'
+            }`}
+          >
+            <span className="material-symbols-outlined text-base">inventory_2</span>
+            <span>Bullion Rates & Inventory</span>
+          </button>
+
+          <button
+            onClick={() => setActiveAdminTab('onam_campaign')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all ${
+              activeAdminTab === 'onam_campaign'
+                ? 'bg-[#C7E24E] text-[#070A0D] shadow-md ring-2 ring-[#C7E24E]/40'
+                : 'bg-[#20221C] text-[#ECEAE2]/80 hover:text-white hover:bg-[#2a2d24]'
+            }`}
+          >
+            <span className="material-symbols-outlined text-base">loyalty</span>
+            <span>Onam 2026 Surprise Campaign</span>
+          </button>
+
+          <button
+            onClick={() => setActiveAdminTab('dlt_sms')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all ${
+              activeAdminTab === 'dlt_sms'
+                ? 'bg-[#C7E24E] text-[#070A0D] shadow-md ring-2 ring-[#C7E24E]/40'
+                : 'bg-[#20221C] text-[#ECEAE2]/80 hover:text-white hover:bg-[#2a2d24]'
+            }`}
+          >
+            <span className="material-symbols-outlined text-base">sms</span>
+            <span>BSNL DLT SMS Gateway</span>
+          </button>
+        </div>
+
+        {/* TAB 1: Leads & Appointments (Google Sheets) */}
+        {activeAdminTab === 'leads' && (
+          <div className="animate-fadeIn">
+            <AdminAppointmentsManager />
+          </div>
+        )}
+
+        {/* TAB 2: Bullion Rates & Product Inventory */}
+        {activeAdminTab === 'rates_inventory' && (
+          <div className="space-y-10 animate-fadeIn">
+            {/* Bullion Rate Controller */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="bg-[#20221C] p-6 rounded-2xl border border-[#C7E24E]/30 space-y-4 shadow-xl lg:col-span-2">
+                <div className="flex justify-between items-center border-b border-[#4E4C4B]/40 pb-3">
+                  <div>
+                    <span className="text-[10px] uppercase tracking-widest text-[#C7E24E] font-bold">STORE BULLION RATES</span>
+                    <h3 className="font-serif-display text-lg font-bold text-[#ECEAE2]">Gold & Silver Rates</h3>
+                  </div>
+                  <span className="material-symbols-outlined text-[#C7E24E]">trending_up</span>
+                </div>
+
+                <form onSubmit={handleUpdateGoldRate} className="space-y-3 text-xs font-sans">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[#ECEAE2]/80 font-medium mb-1">22K Gold Rate per Gram (₹)</label>
+                      <div className="flex items-center bg-[#070A0D] border border-[#4E4C4B] rounded-xl px-3 py-2 focus-within:border-[#C7E24E]">
+                        <span className="text-[#C7E24E] font-bold mr-2">₹</span>
+                        <input
+                          type="number"
+                          value={newGoldRate}
+                          onChange={(e) => setNewGoldRate(Number(e.target.value))}
+                          className="w-full bg-transparent font-data text-sm font-bold text-[#ECEAE2] focus:outline-none"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[#ECEAE2]/80 font-medium mb-1">Silver Rate per Gram (₹)</label>
+                      <div className="flex items-center bg-[#070A0D] border border-[#4E4C4B] rounded-xl px-3 py-2 focus-within:border-[#C7E24E]">
+                        <span className="text-[#B88A44] font-bold mr-2">₹</span>
+                        <input
+                          type="number"
+                          value={silverRate}
+                          onChange={(e) => setSilverRate(Number(e.target.value))}
+                          className="w-full bg-transparent font-data text-sm font-bold text-[#ECEAE2] focus:outline-none"
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Live Multi-Karat Breakdown */}
+                  <div className="bg-[#070A0D] border border-[#4E4C4B]/60 p-3 rounded-xl space-y-1.5 text-[11px] font-data">
+                    <div className="flex justify-between text-[#ECEAE2]">
+                      <span>22K (916) Hallmark:</span>
+                      <span className="font-bold text-[#C7E24E]">₹{newGoldRate.toLocaleString()}/g • 8g (1 Sovereign): ₹{(newGoldRate * 8).toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-[#ECEAE2]/90">
+                      <span>18K (750) Fine Gold:</span>
+                      <span className="font-bold text-[#D4AF6A]">₹{getGoldRateForPurity('18K', newGoldRate).toLocaleString()}/g • 8g: ₹{(getGoldRateForPurity('18K', newGoldRate) * 8).toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-[#ECEAE2]/80">
+                      <span>14K (585) Everyday Gold:</span>
+                      <span className="font-bold text-[#94A3B8]">₹{getGoldRateForPurity('14K', newGoldRate).toLocaleString()}/g • 8g: ₹{(getGoldRateForPurity('14K', newGoldRate) * 8).toLocaleString()}</span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isUpdatingRate}
+                    className="w-full bg-[#C7E24E] hover:bg-[#b0cc3d] text-[#070A0D] py-2.5 rounded-xl font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                  >
+                    {isUpdatingRate ? (
+                      <span className="inline-block w-4 h-4 border-2 border-[#070A0D] border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <span className="material-symbols-outlined text-base">published_with_changes</span>
+                        <span>Update Live Store Rates</span>
+                      </>
+                    )}
+                  </button>
+
+                  {rateUpdatedNotice && (
+                    <div className="text-[11px] text-[#C7E24E] bg-[#C7E24E]/10 p-2.5 rounded-lg border border-[#C7E24E]/30 text-center font-bold space-y-0.5 animate-fadeIn">
+                      <p>✓ 22K, 18K & 14K Gold rates updated in real-time!</p>
+                      <p className="text-[10px] text-[#ECEAE2]/80 font-normal">All product prices & estimators recalculated live across the store.</p>
+                    </div>
+                  )}
+                </form>
               </div>
-              <span className="material-symbols-outlined text-[#C7E24E]">trending_up</span>
+
+              <div className="bg-[#20221C] p-6 rounded-2xl border border-[#4E4C4B] space-y-3 flex flex-col justify-between shadow-xl">
+                <div>
+                  <span className="text-[10px] uppercase tracking-widest text-[#B88A44] font-bold">STORE CREDENTIALS</span>
+                  <h3 className="font-serif-display text-lg font-bold text-[#ECEAE2] mt-1">916 BIS Hallmark Atelier</h3>
+                  <p className="text-xs text-[#ECEAE2]/70 mt-2 leading-relaxed">
+                    Live bullion rates are broadcasted in real time to the hero banner, PDP calculators, and cart breakdowns.
+                  </p>
+                </div>
+                <div className="bg-[#070A0D] p-3 rounded-xl border border-[#4E4C4B]/40 text-xs text-[#C7E24E] font-mono">
+                  Cherai, Ernakulam • Since 1992
+                </div>
+              </div>
             </div>
 
-            <form onSubmit={handleUpdateGoldRate} className="space-y-3 text-xs font-sans">
-              <div>
-                <label className="block text-[#ECEAE2]/80 font-medium mb-1">22K Gold Rate per Gram (₹)</label>
-                <div className="flex items-center bg-[#070A0D] border border-[#4E4C4B] rounded-xl px-3 py-2 focus-within:border-[#C7E24E]">
-                  <span className="text-[#C7E24E] font-bold mr-2">₹</span>
-                  <input
-                    type="number"
-                    value={newGoldRate}
-                    onChange={(e) => setNewGoldRate(Number(e.target.value))}
-                    className="w-full bg-transparent font-data text-sm font-bold text-[#ECEAE2] focus:outline-none"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[#ECEAE2]/80 font-medium mb-1">Silver Rate per Gram (₹)</label>
-                <div className="flex items-center bg-[#070A0D] border border-[#4E4C4B] rounded-xl px-3 py-2 focus-within:border-[#C7E24E]">
-                  <span className="text-[#B88A44] font-bold mr-2">₹</span>
-                  <input
-                    type="number"
-                    value={silverRate}
-                    onChange={(e) => setSilverRate(Number(e.target.value))}
-                    className="w-full bg-transparent font-data text-sm font-bold text-[#ECEAE2] focus:outline-none"
-                    required
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full bg-[#C7E24E] hover:bg-[#b0cc3d] text-[#070A0D] py-2.5 rounded-xl font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5"
-              >
-                <span className="material-symbols-outlined text-base">published_with_changes</span>
-                <span>Update Store Rates</span>
-              </button>
-
-              {rateUpdatedNotice && (
-                <p className="text-[11px] text-[#C7E24E] bg-[#C7E24E]/10 p-2 rounded-lg border border-[#C7E24E]/30 text-center font-bold animate-fadeIn">
-                  ✓ Gold rate updated to ₹{goldRate.toLocaleString()}/g! All product prices recalculated.
-                </p>
-              )}
-            </form>
+            {/* Product Upload & Karat Tagging Studio */}
+            <AdminProductManager currentGoldRate={newGoldRate} />
           </div>
+        )}
 
-          {/* Campaign Schedule & Rules */}
-          <div className="bg-[#20221C] p-6 rounded-2xl border border-[#4E4C4B] space-y-4 shadow-xl">
+        {/* TAB 3: Onam 2026 Campaign & Quotas */}
+        {activeAdminTab === 'onam_campaign' && (
+          <div className="space-y-10 animate-fadeIn">
+            {/* Campaign Config & Rules */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Campaign Schedule & Rules */}
+              <div className="bg-[#20221C] p-6 rounded-2xl border border-[#4E4C4B] space-y-4 shadow-xl">
             <div className="flex justify-between items-center border-b border-[#4E4C4B]/40 pb-3">
               <div>
                 <span className="text-[10px] uppercase tracking-widest text-[#B88A44] font-bold">TIMING & RULES</span>
@@ -509,160 +651,11 @@ export const AdminCampaignView: React.FC<AdminCampaignViewProps> = ({
               )}
             </form>
           </div>
-          {/* BSNL DLT SMS Gateway & Header Portal */}
-          <div className="bg-[#20221C] p-6 rounded-2xl border border-[#C7E24E]/40 space-y-4 shadow-xl lg:col-span-3">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-[#4E4C4B]/40 pb-3">
-              <div>
-                <span className="text-[10px] uppercase tracking-widest text-[#C7E24E] font-bold">TELECOM DLT COMPLIANCE</span>
-                <h3 className="font-serif-display text-lg font-bold text-[#ECEAE2]">BSNL DLT SMS OTP Configuration & Testing</h3>
-              </div>
-              <span className="bg-[#C7E24E]/10 text-[#C7E24E] border border-[#C7E24E]/30 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">
-                TRAI DLT Verified: BSNL
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 text-xs font-sans">
-              {/* Left 7 cols: Config form */}
-              <form onSubmit={handleSaveDltConfig} className="lg:col-span-8 space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[#ECEAE2]/80 font-medium mb-1">
-                      BSNL Principal Entity (PE) ID
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="17011582900000xxxxx"
-                      value={dltConfig.entityId}
-                      onChange={(e) => setDltConfig({ ...dltConfig, entityId: e.target.value })}
-                      className="w-full bg-[#070A0D] border border-[#4E4C4B] p-2.5 rounded-xl text-xs font-data text-[#ECEAE2] outline-none focus:border-[#C7E24E]"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[#ECEAE2]/80 font-medium mb-1">
-                      Approved Sender ID (Header)
-                    </label>
-                    <input
-                      type="text"
-                      maxLength={6}
-                      placeholder="KAVITH"
-                      value={dltConfig.senderHeader}
-                      onChange={(e) => setDltConfig({ ...dltConfig, senderHeader: e.target.value.toUpperCase() })}
-                      className="w-full bg-[#070A0D] border border-[#4E4C4B] p-2.5 rounded-xl text-xs font-data font-bold text-[#C7E24E] uppercase tracking-wider outline-none focus:border-[#C7E24E]"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[#ECEAE2]/80 font-medium mb-1">
-                      Approved DLT Content Template ID
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="17071629000000xxxxx"
-                      value={dltConfig.templateId}
-                      onChange={(e) => setDltConfig({ ...dltConfig, templateId: e.target.value })}
-                      className="w-full bg-[#070A0D] border border-[#4E4C4B] p-2.5 rounded-xl text-xs font-data text-[#ECEAE2] outline-none focus:border-[#C7E24E]"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[#ECEAE2]/80 font-medium mb-1">
-                      SMS Gateway Provider
-                    </label>
-                    <select
-                      value={dltConfig.gatewayProvider}
-                      onChange={(e) => setDltConfig({ ...dltConfig, gatewayProvider: e.target.value as any })}
-                      className="w-full bg-[#070A0D] border border-[#4E4C4B] p-2.5 rounded-xl text-xs font-bold text-[#ECEAE2] outline-none"
-                    >
-                      <option value="simulated">Simulated DLT Mode (Testing without API key)</option>
-                      <option value="fast2sms">Fast2SMS (Quick DLT API)</option>
-                      <option value="msg91">MSG91 (v5 DLT OTP API)</option>
-                      <option value="textlocal">Textlocal India</option>
-                      <option value="twilio">Twilio India DLT Header</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[#ECEAE2]/80 font-medium mb-1">
-                    SMS Gateway API Key
-                  </label>
-                  <input
-                    type="password"
-                    placeholder="Enter API Key from Fast2SMS / MSG91 / Gateway"
-                    value={dltConfig.apiKey}
-                    onChange={(e) => setDltConfig({ ...dltConfig, apiKey: e.target.value })}
-                    className="w-full bg-[#070A0D] border border-[#4E4C4B] p-2.5 rounded-xl text-xs font-data text-[#ECEAE2] outline-none focus:border-[#C7E24E]"
-                  />
-                  <p className="text-[10px] text-[#ECEAE2]/50 mt-1">
-                    Registered Template Text: <code className="text-[#C7E24E]">{dltConfig.templateContent}</code>
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-3 pt-1">
-                  <button
-                    type="submit"
-                    className="bg-[#C7E24E] hover:bg-[#b0cc3d] text-[#070A0D] px-5 py-2.5 rounded-xl font-bold uppercase tracking-wider text-xs transition-all flex items-center gap-1.5 shadow"
-                  >
-                    <span className="material-symbols-outlined text-base">save</span>
-                    <span>Save DLT Credentials</span>
-                  </button>
-                  {dltSaveNotice && (
-                    <span className="text-xs text-[#C7E24E] font-bold animate-fadeIn">{dltSaveNotice}</span>
-                  )}
-                </div>
-              </form>
-
-              {/* Right 4 cols: Live SMS OTP Tester */}
-              <div className="lg:col-span-4 bg-[#070A0D] p-4 rounded-xl border border-[#4E4C4B] space-y-3">
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-[#B88A44] block">LIVE TEST SENDER</span>
-                  <h4 className="font-serif-display text-sm font-bold text-[#ECEAE2]">Test BSNL DLT OTP Dispatch</h4>
-                </div>
-
-                <form onSubmit={handleSendTestDltSms} className="space-y-2.5">
-                  <div>
-                    <label className="block text-[11px] text-[#ECEAE2]/70 mb-1">Mobile (+91)</label>
-                    <input
-                      type="tel"
-                      maxLength={10}
-                      placeholder="9876543210"
-                      value={testPhone}
-                      onChange={(e) => setTestPhone(e.target.value.replace(/\D/g, ''))}
-                      className="w-full bg-[#20221C] border border-[#4E4C4B] px-3 py-2 rounded-xl font-data text-xs font-bold text-[#C7E24E] focus:outline-none"
-                      required
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={testSmsLoading}
-                    className="w-full bg-[#B88A44] hover:bg-[#a3793b] text-white py-2.5 rounded-xl font-bold uppercase text-[11px] tracking-wider transition-all flex items-center justify-center gap-1.5"
-                  >
-                    <span className="material-symbols-outlined text-base">send_to_mobile</span>
-                    <span>{testSmsLoading ? 'Sending...' : 'Send Test BSNL DLT SMS'}</span>
-                  </button>
-
-                  {testSmsNotice && (
-                    <p className="text-[11px] text-[#C7E24E] bg-[#C7E24E]/10 p-2.5 rounded-lg border border-[#C7E24E]/30 font-data leading-tight">
-                      {testSmsNotice}
-                    </p>
-                  )}
-                </form>
-              </div>
-            </div>
-          </div>
         </div>
-
-        {/* ========================================================= */}
-        {/* SECTION 2: COUPON INVENTORY ALLOCATION & QUOTA POOLS */}
-        {/* ========================================================= */}
-        <div className="bg-[#20221C] p-6 rounded-2xl border border-[#4E4C4B] space-y-6 shadow-xl">
+          {/* ========================================================= */}
+          {/* SECTION 2: COUPON INVENTORY ALLOCATION & QUOTA POOLS */}
+          {/* ========================================================= */}
+          <div className="bg-[#20221C] p-6 rounded-2xl border border-[#4E4C4B] space-y-6 shadow-xl">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-[#4E4C4B]/40 pb-4">
             <div>
               <span className="text-[10px] uppercase tracking-widest text-[#C7E24E] font-bold">COUPON INVENTORY BACKEND</span>
@@ -1007,6 +1000,164 @@ export const AdminCampaignView: React.FC<AdminCampaignViewProps> = ({
             </table>
           </div>
         </div>
+      </div>
+    )}
+
+    {/* TAB 4: BSNL DLT SMS Gateway */}
+    {activeAdminTab === 'dlt_sms' && (
+      <div className="space-y-6 animate-fadeIn">
+        <div className="bg-[#20221C] p-6 rounded-2xl border border-[#C7E24E]/40 space-y-4 shadow-xl">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-[#4E4C4B]/40 pb-3">
+            <div>
+              <span className="text-[10px] uppercase tracking-widest text-[#C7E24E] font-bold">TELECOM DLT COMPLIANCE</span>
+              <h3 className="font-serif-display text-xl font-bold text-[#ECEAE2]">BSNL DLT SMS OTP Configuration & Testing</h3>
+            </div>
+            <span className="bg-[#C7E24E]/10 text-[#C7E24E] border border-[#C7E24E]/30 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">
+              TRAI DLT Verified: BSNL
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 text-xs font-sans">
+            {/* Left 8 cols: Config form */}
+            <form onSubmit={handleSaveDltConfig} className="lg:col-span-8 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[#ECEAE2]/80 font-medium mb-1">
+                    BSNL Principal Entity (PE) ID
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="17011582900000xxxxx"
+                    value={dltConfig.entityId}
+                    onChange={(e) => setDltConfig({ ...dltConfig, entityId: e.target.value })}
+                    className="w-full bg-[#070A0D] border border-[#4E4C4B] p-2.5 rounded-xl text-xs font-data text-[#ECEAE2] outline-none focus:border-[#C7E24E]"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[#ECEAE2]/80 font-medium mb-1">
+                    Approved Sender ID (Header)
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    placeholder="KAVITH"
+                    value={dltConfig.senderHeader}
+                    onChange={(e) => setDltConfig({ ...dltConfig, senderHeader: e.target.value.toUpperCase() })}
+                    className="w-full bg-[#070A0D] border border-[#4E4C4B] p-2.5 rounded-xl text-xs font-data font-bold text-[#C7E24E] uppercase tracking-wider outline-none focus:border-[#C7E24E]"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[#ECEAE2]/80 font-medium mb-1">
+                    Approved DLT Content Template ID
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="17071629000000xxxxx"
+                    value={dltConfig.templateId}
+                    onChange={(e) => setDltConfig({ ...dltConfig, templateId: e.target.value })}
+                    className="w-full bg-[#070A0D] border border-[#4E4C4B] p-2.5 rounded-xl text-xs font-data text-[#ECEAE2] outline-none focus:border-[#C7E24E]"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[#ECEAE2]/80 font-medium mb-1">
+                    SMS Gateway Provider
+                  </label>
+                  <select
+                    value={dltConfig.gatewayProvider}
+                    onChange={(e) => setDltConfig({ ...dltConfig, gatewayProvider: e.target.value as any })}
+                    className="w-full bg-[#070A0D] border border-[#4E4C4B] p-2.5 rounded-xl text-xs font-bold text-[#ECEAE2] outline-none"
+                  >
+                    <option value="simulated">Simulated DLT Mode (Testing without API key)</option>
+                    <option value="fast2sms">Fast2SMS (Quick DLT API)</option>
+                    <option value="msg91">MSG91 (v5 DLT OTP API)</option>
+                    <option value="textlocal">Textlocal India</option>
+                    <option value="twilio">Twilio India DLT Header</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[#ECEAE2]/80 font-medium mb-1">
+                  SMS Gateway API Key
+                </label>
+                <input
+                  type="password"
+                  placeholder="Enter API Key from Fast2SMS / MSG91 / Gateway"
+                  value={dltConfig.apiKey}
+                  onChange={(e) => setDltConfig({ ...dltConfig, apiKey: e.target.value })}
+                  className="w-full bg-[#070A0D] border border-[#4E4C4B] p-2.5 rounded-xl text-xs font-data text-[#ECEAE2] outline-none focus:border-[#C7E24E]"
+                />
+                <p className="text-[10px] text-[#ECEAE2]/50 mt-1">
+                  Registered Template Text: <code className="text-[#C7E24E]">{dltConfig.templateContent}</code>
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  type="submit"
+                  className="bg-[#C7E24E] hover:bg-[#b0cc3d] text-[#070A0D] px-6 py-2.5 rounded-xl font-bold uppercase tracking-wider text-xs transition-all flex items-center gap-1.5 shadow"
+                >
+                  <span className="material-symbols-outlined text-base">save</span>
+                  <span>Save DLT Credentials</span>
+                </button>
+                {dltSaveNotice && (
+                  <span className="text-xs text-[#C7E24E] font-bold animate-fadeIn">{dltSaveNotice}</span>
+                )}
+              </div>
+            </form>
+
+            {/* Right 4 cols: Live SMS OTP Tester */}
+            <div className="lg:col-span-4 bg-[#070A0D] p-5 rounded-xl border border-[#4E4C4B] space-y-4">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#B88A44] block">LIVE TEST SENDER</span>
+                <h4 className="font-serif-display text-base font-bold text-[#ECEAE2]">Test BSNL DLT OTP Dispatch</h4>
+                <p className="text-[11px] text-[#ECEAE2]/60 mt-1">
+                  Send a real-time verification OTP to verify TRAI DLT header delivery.
+                </p>
+              </div>
+
+              <form onSubmit={handleSendTestDltSms} className="space-y-3">
+                <div>
+                  <label className="block text-[11px] text-[#ECEAE2]/70 mb-1">Mobile (+91)</label>
+                  <input
+                    type="tel"
+                    maxLength={10}
+                    placeholder="9876543210"
+                    value={testPhone}
+                    onChange={(e) => setTestPhone(e.target.value.replace(/\D/g, ''))}
+                    className="w-full bg-[#20221C] border border-[#4E4C4B] px-3 py-2.5 rounded-xl font-data text-xs font-bold text-[#C7E24E] focus:outline-none"
+                    required
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={testSmsLoading}
+                  className="w-full bg-[#B88A44] hover:bg-[#a3793b] text-white py-2.5 rounded-xl font-bold uppercase text-xs tracking-wider transition-all flex items-center justify-center gap-1.5"
+                >
+                  <span className="material-symbols-outlined text-base">send_to_mobile</span>
+                  <span>{testSmsLoading ? 'Sending...' : 'Send Test BSNL DLT SMS'}</span>
+                </button>
+
+                {testSmsNotice && (
+                  <p className="text-[11px] text-[#C7E24E] bg-[#C7E24E]/10 p-2.5 rounded-lg border border-[#C7E24E]/30 font-data leading-tight">
+                    {testSmsNotice}
+                  </p>
+                )}
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
 
       </div>
     </div>

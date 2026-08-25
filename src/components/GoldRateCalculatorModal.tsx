@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { calculatePriceBreakdown, CURRENT_GOLD_RATE_22K } from '../data/products';
+import React, { useState, useEffect } from 'react';
+import { calculatePriceBreakdown, CURRENT_GOLD_RATE_22K, getGoldRateForPurity } from '../data/products';
 import { PurityType } from '../types';
 
 interface GoldRateCalculatorModalProps {
@@ -18,13 +18,29 @@ export const GoldRateCalculatorModal: React.FC<GoldRateCalculatorModalProps> = (
   const [weight, setWeight] = useState<number>(10);
   const [purity, setPurity] = useState<PurityType>('22K');
   const [customRateInput, setCustomRateInput] = useState<number>(goldRate);
+  const [appliedNotice, setAppliedNotice] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (isOpen && goldRate > 0) {
+      setCustomRateInput(goldRate);
+    }
+  }, [isOpen, goldRate]);
 
   if (!isOpen) return null;
 
+  const rate18k = getGoldRateForPurity('18K', customRateInput);
+  const rate14k = getGoldRateForPurity('14K', customRateInput);
   const breakdown = calculatePriceBreakdown(weight, purity, customRateInput);
 
   const handleApplyCustomRate = () => {
-    setGoldRate(customRateInput);
+    if (customRateInput >= 5000) {
+      setGoldRate(customRateInput);
+      setAppliedNotice(true);
+      setTimeout(() => {
+        setAppliedNotice(false);
+        onClose();
+      }, 1200);
+    }
   };
 
   return (
@@ -47,35 +63,44 @@ export const GoldRateCalculatorModal: React.FC<GoldRateCalculatorModalProps> = (
               Real-Time Gold Estimator
             </h3>
             <p className="font-sans text-xs text-[#524346]">
-              Calculate live value based on daily market bullion benchmarks.
+              Calculate live value based on daily market bullion benchmarks for 22K, 18K, and 14K gold.
             </p>
           </div>
         </div>
 
         {/* Live Rates Display */}
         <div className="grid grid-cols-3 gap-2 mb-5 text-center">
-          <div className="bg-[#fef0f1] p-2.5 rounded border border-[#d7c1c4]">
-            <span className="block text-[10px] font-sans uppercase tracking-widest text-[#847375] font-semibold">
-              22K Standard
+          <div className="bg-[#fef0f1] p-2.5 rounded-lg border border-[#d7c1c4] flex flex-col justify-between">
+            <span className="block text-[10px] font-brand uppercase tracking-wider text-[#847375] font-bold">
+              22K Standard (916)
             </span>
-            <span className="font-data font-bold text-sm text-[#370617]">
+            <span className="font-data font-bold text-sm sm:text-base text-[#370617] my-0.5">
               ₹{customRateInput.toLocaleString()}/g
             </span>
-          </div>
-          <div className="bg-[#fef0f1] p-2.5 rounded border border-[#d7c1c4]">
-            <span className="block text-[10px] font-sans uppercase tracking-widest text-[#847375] font-semibold">
-              18K Fine
-            </span>
-            <span className="font-data font-bold text-sm text-[#370617]">
-              ₹{Math.round(customRateInput * 0.82).toLocaleString()}/g
+            <span className="text-[9.5px] font-data text-[#875E26] font-semibold">
+              8g (Pavan): ₹{(customRateInput * 8).toLocaleString()}
             </span>
           </div>
-          <div className="bg-[#fef0f1] p-2.5 rounded border border-[#d7c1c4]">
-            <span className="block text-[10px] font-sans uppercase tracking-widest text-[#847375] font-semibold">
-              14K Everyday
+          <div className="bg-[#fef0f1] p-2.5 rounded-lg border border-[#d7c1c4] flex flex-col justify-between">
+            <span className="block text-[10px] font-brand uppercase tracking-wider text-[#847375] font-bold">
+              18K Fine (750)
             </span>
-            <span className="font-data font-bold text-sm text-[#370617]">
-              ₹{Math.round(customRateInput * 0.64).toLocaleString()}/g
+            <span className="font-data font-bold text-sm sm:text-base text-[#370617] my-0.5">
+              ₹{rate18k.toLocaleString()}/g
+            </span>
+            <span className="text-[9.5px] font-data text-[#875E26] font-semibold">
+              8g: ₹{(rate18k * 8).toLocaleString()}
+            </span>
+          </div>
+          <div className="bg-[#fef0f1] p-2.5 rounded-lg border border-[#d7c1c4] flex flex-col justify-between">
+            <span className="block text-[10px] font-brand uppercase tracking-wider text-[#847375] font-bold">
+              14K Everyday (585)
+            </span>
+            <span className="font-data font-bold text-sm sm:text-base text-[#370617] my-0.5">
+              ₹{rate14k.toLocaleString()}/g
+            </span>
+            <span className="text-[9.5px] font-data text-[#875E26] font-semibold">
+              8g: ₹{(rate14k * 8).toLocaleString()}
             </span>
           </div>
         </div>
@@ -118,7 +143,7 @@ export const GoldRateCalculatorModal: React.FC<GoldRateCalculatorModalProps> = (
 
           <div>
             <label className="block text-xs font-sans uppercase tracking-wider font-semibold text-[#370617] mb-1">
-              Gold Purity
+              Gold Purity Tag
             </label>
             <div className="grid grid-cols-3 gap-2">
               {(['22K', '18K', '14K'] as PurityType[]).map((p) => (
@@ -132,7 +157,7 @@ export const GoldRateCalculatorModal: React.FC<GoldRateCalculatorModalProps> = (
                       : 'bg-white border-[#d7c1c4] text-[#370617] hover:bg-[#f2e5e6]'
                   }`}
                 >
-                  {p} Hallmarked
+                  {p} {p === '22K' ? '(916)' : p === '18K' ? '(750)' : '(585)'}
                 </button>
               ))}
             </div>
@@ -141,14 +166,14 @@ export const GoldRateCalculatorModal: React.FC<GoldRateCalculatorModalProps> = (
           <div>
             <div className="flex justify-between items-center mb-1">
               <label htmlFor="bullion-rate-input" className="text-xs font-sans uppercase tracking-wider font-semibold text-[#370617]">
-                Simulate 22K Bullion Rate (₹/g)
+                Update 22K Bullion Gold Rate (₹/g)
               </label>
               <button
                 type="button"
                 onClick={() => setCustomRateInput(CURRENT_GOLD_RATE_22K)}
                 className="text-xs text-[#B88A44] hover:underline font-semibold"
               >
-                Reset Default (₹6,240)
+                Reset Default (₹15,010)
               </button>
             </div>
             <div className="flex gap-2">
@@ -162,9 +187,11 @@ export const GoldRateCalculatorModal: React.FC<GoldRateCalculatorModalProps> = (
               <button
                 type="button"
                 onClick={handleApplyCustomRate}
-                className="bg-[#B88A44] text-white px-4 py-2 min-h-[44px] rounded-lg text-xs font-sans uppercase tracking-wider font-bold hover:bg-[#7e5714] transition-colors whitespace-nowrap focus:ring-2 focus:ring-[#370617]"
+                className={`${
+                  appliedNotice ? 'bg-[#10B981]' : 'bg-[#B88A44] hover:bg-[#7e5714]'
+                } text-white px-4 py-2 min-h-[44px] rounded-lg text-xs font-sans uppercase tracking-wider font-bold transition-all whitespace-nowrap focus:ring-2 focus:ring-[#370617]`}
               >
-                Apply to Store
+                {appliedNotice ? '✓ Applied Live!' : 'Apply to Store'}
               </button>
             </div>
           </div>
@@ -176,8 +203,8 @@ export const GoldRateCalculatorModal: React.FC<GoldRateCalculatorModalProps> = (
             Estimated Price Breakdown ({weight}g @ {purity})
           </span>
           <div className="flex justify-between text-xs text-[#524346]">
-            <span>Raw Gold Value</span>
-            <span className="font-data">₹{breakdown.goldValue.toLocaleString()}</span>
+            <span>Raw Gold Value ({weight}g × ₹{purity === '22K' ? customRateInput.toLocaleString() : purity === '18K' ? rate18k.toLocaleString() : rate14k.toLocaleString()})</span>
+            <span className="font-data font-semibold">₹{breakdown.goldValue.toLocaleString()}</span>
           </div>
           <div className="flex justify-between text-xs text-[#524346]">
             <span>Craftsmanship & Making (8%)</span>
@@ -196,7 +223,7 @@ export const GoldRateCalculatorModal: React.FC<GoldRateCalculatorModalProps> = (
             <span className="font-data">₹{breakdown.gst.toLocaleString()}</span>
           </div>
           <div className="border-t border-[#d7c1c4] pt-2 mt-2 flex justify-between items-center">
-            <span className="font-serif-display text-sm text-[#370617] font-bold">Total Estimated Value</span>
+            <span className="font-serif-display text-sm text-[#370617] font-bold">Total Estimated Value ({purity})</span>
             <span className="font-data text-base font-bold text-[#370617]">
               ₹{breakdown.total.toLocaleString()}
             </span>

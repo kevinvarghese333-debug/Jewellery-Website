@@ -52,6 +52,10 @@ export interface FilterState {
 export type ActiveView = 
   | 'home' 
   | 'catalog' 
+  | 'earrings'
+  | 'necklaces'
+  | 'bangles'
+  | 'bridal'
   | 'pdp' 
   | 'cart' 
   | 'wishlist' 
@@ -162,6 +166,36 @@ export interface OrderRecord {
   trackingNumber: string;
   paymentMethod: string;
   deliveryAddress?: string;
+}
+
+export interface AppointmentRecord {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  city?: string;
+  location: string;
+  type: 'video' | 'showroom';
+  date: string;
+  time: string;
+  selectedProductId?: string;
+  selectedProductName?: string;
+  selectedProductImage?: string;
+  selectedProductPurity?: string;
+  notes?: string;
+  status: 'NEW' | 'CONTACTED' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
+  source: string;
+  createdAt: string;
+  updatedAt?: string;
+  staffNotes?: string;
+  syncedToGoogleSheets?: boolean;
+}
+
+export interface GoogleSheetsConfig {
+  webhookUrl: string;
+  sheetName: string;
+  autoSync: boolean;
+  lastSyncAt?: string;
 }
 
 

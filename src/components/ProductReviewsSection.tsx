@@ -464,9 +464,9 @@ export const ProductReviewsSection: React.FC<ProductReviewsSectionProps> = ({
                 onChange={(e) => setPurityBought(e.target.value as PurityType)}
                 className="w-full bg-white border border-[#d7c1c4] rounded-xl px-3.5 py-2.5 text-xs font-sans font-bold text-[#370617] focus:outline-none"
               >
-                <option value="22K">22K / 916 BIS Hallmark Gold</option>
-                <option value="18K">18K / 750 Fine Gold</option>
-                <option value="14K">14K Gold</option>
+                <option value="22K">22K • 916 BIS Hallmark Gold</option>
+                <option value="18K">18K • 750 BIS Hallmark Gold</option>
+                <option value="14K">14K • 585 BIS Hallmark Gold</option>
               </select>
             </div>
           </div>
@@ -733,8 +733,8 @@ export const ProductReviewsSection: React.FC<ProductReviewsSectionProps> = ({
 
                   {/* Purity Badge */}
                   {rev.purityBought && (
-                    <span className="bg-[#370617] text-white text-[10px] font-data px-2 py-0.5 rounded font-bold">
-                      {rev.purityBought} / 916 Hallmark
+                    <span className="bg-[#370617] text-white text-[10px] font-brand px-2 py-0.5 rounded font-bold">
+                      {rev.purityBought} • 916 BIS Hallmark
                     </span>
                   )}
 

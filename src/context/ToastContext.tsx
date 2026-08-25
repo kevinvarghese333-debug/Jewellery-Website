@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import { Product, PurityType, ActiveView } from '../types';
-import { calculatePriceBreakdown } from '../data/products';
+import { calculatePriceBreakdown, CURRENT_GOLD_RATE_22K } from '../data/products';
 
 export type ToastType = 'cart' | 'wishlist-add' | 'wishlist-remove' | 'gold-rate' | 'success' | 'info' | 'error';
 
@@ -65,7 +65,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   const notifyAddToCart = useCallback(
-    (product: Product, purity: PurityType = '22K', quantity: number = 1, goldRate: number = 6240) => {
+    (product: Product, purity: PurityType = '22K', quantity: number = 1, goldRate: number = CURRENT_GOLD_RATE_22K) => {
       const bd = calculatePriceBreakdown(product.weightGrams, purity, goldRate);
       const calculatedPrice = bd.total * quantity;
 

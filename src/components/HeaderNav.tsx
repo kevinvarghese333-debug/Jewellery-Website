@@ -60,24 +60,39 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
               <span>🌼 ONAM SURPRISE: REVEAL ₹50 - ₹50,000 →</span>
             </button>
             <span className="hidden md:inline text-[#d7c1c4] ml-3">|</span>
-            <span className="hidden md:flex items-center gap-1 font-medium text-xs ml-3 text-[#524346]">
+            <span className="hidden md:flex items-center gap-1.5 font-medium text-xs ml-3 text-[#524346]">
               <span className="material-symbols-outlined text-sm text-[#B88A44]">verified</span>
-              100% BIS Hallmarked 22K/916 Jewellery
+              <span className="font-brand font-bold text-[#370617]">22K / 18K / 14K</span>
+              <span className="text-[#847375]">• 916 BIS Hallmark</span>
             </span>
           </div>
 
-          <div className="flex items-center justify-center space-x-3 w-full md:w-auto">
+          <div className="flex items-center justify-center flex-wrap sm:flex-nowrap gap-2 sm:space-x-3 w-full md:w-auto">
             <button 
               onClick={onOpenGoldCalc}
-              className="flex items-center gap-1 hover:text-[#6B1F2A] transition-colors font-medium bg-[#ffffff]/80 px-2.5 py-1 rounded-lg border border-[#b88a44]/30 min-h-[30px]"
-              title="Click to view Live Gold Rate Calculator"
+              className="flex items-center gap-2 hover:text-[#6B1F2A] transition-colors font-medium bg-[#ffffff]/90 px-3 py-1 rounded-lg border border-[#b88a44]/35 shadow-xs min-h-[30px] group"
+              title="Click to view Live Gold Rate Calculator & Estimator"
             >
-              <span className="material-symbols-outlined text-xs text-[#B88A44]">trending_up</span>
-              <span>Gold Rate (22K): <strong className="font-data text-[#370617]">₹{goldRate.toLocaleString()}/gm</strong></span>
-              <span className="text-[10px] text-[#7e5714] underline ml-1 font-bold">Calc</span>
+              <div className="flex items-center gap-1 text-[#047857]">
+                <span className="w-2 h-2 rounded-full bg-[#10B981] animate-ping" />
+                <span className="material-symbols-outlined text-xs text-[#B88A44]">trending_up</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <span>
+                  <strong className="text-[#875E26] font-bold">22K:</strong> <span className="font-data font-bold text-[#370617]">₹{goldRate.toLocaleString()}/g</span>
+                  <span className="text-[10.5px] text-[#786466] font-data ml-1 hidden lg:inline">(8g: ₹{(goldRate * 8).toLocaleString()})</span>
+                </span>
+                <span className="text-[#d7c1c4]">|</span>
+                <span>
+                  <strong className="text-[#875E26] font-bold">18K:</strong> <span className="font-data font-bold text-[#370617]">₹{Math.round(goldRate * (12335 / 15010)).toLocaleString()}/g</span>
+                </span>
+              </div>
+              <span className="text-[10px] bg-[#B88A44]/15 text-[#7e5714] px-1.5 py-0.5 rounded font-bold uppercase group-hover:bg-[#B88A44] group-hover:text-white transition-colors">
+                Calc
+              </span>
             </button>
-            <span className="text-[#d7c1c4]">|</span>
-            <span className="text-[#524346] text-[10px] sm:text-[11px]">Updated at 10:30 AM</span>
+            <span className="text-[#d7c1c4] hidden sm:inline">|</span>
+            <span className="text-[#524346] text-[10px] sm:text-[11px] hidden sm:inline whitespace-nowrap">Updated Today</span>
           </div>
         </div>
       </div>
@@ -105,7 +120,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
           </button>
 
           {/* Navigation Links */}
-          <nav className="hidden lg:flex items-center space-x-4 xl:space-x-6 flex-wrap" aria-label="Main Navigation">
+          <nav className="hidden lg:flex items-center space-x-3 xl:space-x-5 flex-wrap" aria-label="Main Navigation">
             <button 
               onClick={() => setActiveView('onam-campaign')}
               className={`font-sans text-xs uppercase tracking-wider transition-all duration-200 py-1.5 flex items-center gap-1 focus:ring-2 focus:ring-[#370617] rounded px-2 whitespace-nowrap ${
@@ -115,51 +130,71 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
               }`}
             >
               <span className="material-symbols-outlined text-sm">card_giftcard</span>
-              <span>Onam Surprise</span>
+              <span>Onam Offer</span>
             </button>
 
             <button 
               onClick={() => setActiveView('catalog')}
-              className={`font-sans text-xs uppercase tracking-wider transition-all duration-200 py-1.5 focus:ring-2 focus:ring-[#370617] rounded px-1.5 whitespace-nowrap ${
+              className={`font-sans text-xs uppercase tracking-wider transition-all duration-200 py-1.5 focus:ring-2 focus:ring-[#370617] rounded px-2 whitespace-nowrap ${
                 activeView === 'catalog' 
                   ? 'text-[#370617] border-b-2 border-[#370617] font-bold' 
                   : 'text-[#370617]/80 hover:text-[#370617] font-semibold'
               }`}
             >
-              Gold Catalogue
+              All Jewellery
             </button>
 
             <button 
-              onClick={() => setActiveView('catalog')}
-              className="font-sans text-xs uppercase tracking-wider text-[#370617]/80 hover:text-[#370617] transition-all duration-200 py-1.5 focus:ring-2 focus:ring-[#370617] rounded px-1.5 whitespace-nowrap font-medium"
+              onClick={() => setActiveView('earrings')}
+              className={`font-sans text-xs uppercase tracking-wider transition-all duration-200 py-1.5 focus:ring-2 focus:ring-[#370617] rounded px-2 whitespace-nowrap ${
+                activeView === 'earrings' 
+                  ? 'text-[#370617] border-b-2 border-[#370617] font-bold' 
+                  : 'text-[#370617]/80 hover:text-[#370617] font-medium'
+              }`}
             >
               Earrings
             </button>
 
             <button 
-              onClick={() => setActiveView('catalog')}
-              className="font-sans text-xs uppercase tracking-wider text-[#370617]/80 hover:text-[#370617] transition-all duration-200 py-1.5 focus:ring-2 focus:ring-[#370617] rounded px-1.5 whitespace-nowrap font-medium"
+              onClick={() => setActiveView('necklaces')}
+              className={`font-sans text-xs uppercase tracking-wider transition-all duration-200 py-1.5 focus:ring-2 focus:ring-[#370617] rounded px-2 whitespace-nowrap ${
+                activeView === 'necklaces' 
+                  ? 'text-[#370617] border-b-2 border-[#370617] font-bold' 
+                  : 'text-[#370617]/80 hover:text-[#370617] font-medium'
+              }`}
             >
               Necklaces
             </button>
 
             <button 
-              onClick={() => setActiveView('catalog')}
-              className="font-sans text-xs uppercase tracking-wider text-[#370617]/80 hover:text-[#370617] transition-all duration-200 py-1.5 focus:ring-2 focus:ring-[#370617] rounded px-1.5 whitespace-nowrap font-medium"
+              onClick={() => setActiveView('bangles')}
+              className={`font-sans text-xs uppercase tracking-wider transition-all duration-200 py-1.5 focus:ring-2 focus:ring-[#370617] rounded px-2 whitespace-nowrap ${
+                activeView === 'bangles' 
+                  ? 'text-[#370617] border-b-2 border-[#370617] font-bold' 
+                  : 'text-[#370617]/80 hover:text-[#370617] font-medium'
+              }`}
             >
               Bangles
             </button>
 
             <button 
-              onClick={() => setActiveView('home')}
-              className="font-sans text-xs uppercase tracking-wider text-[#370617]/80 hover:text-[#370617] transition-all duration-200 py-1.5 focus:ring-2 focus:ring-[#370617] rounded px-1.5 whitespace-nowrap font-medium"
+              onClick={() => setActiveView('bridal')}
+              className={`font-sans text-xs uppercase tracking-wider transition-all duration-200 py-1.5 focus:ring-2 focus:ring-[#370617] rounded px-2 whitespace-nowrap ${
+                activeView === 'bridal' 
+                  ? 'text-[#370617] border-b-2 border-[#370617] font-bold' 
+                  : 'text-[#370617]/80 hover:text-[#370617] font-medium'
+              }`}
             >
               Bridal Trousseau
             </button>
 
             <button 
               onClick={() => setActiveView('locations')}
-              className="font-sans text-xs uppercase tracking-wider text-[#370617]/80 hover:text-[#370617] transition-all duration-200 py-1.5 focus:ring-2 focus:ring-[#370617] rounded px-1.5 whitespace-nowrap font-medium"
+              className={`font-sans text-xs uppercase tracking-wider transition-all duration-200 py-1.5 focus:ring-2 focus:ring-[#370617] rounded px-2 whitespace-nowrap ${
+                activeView === 'locations' 
+                  ? 'text-[#370617] border-b-2 border-[#370617] font-bold' 
+                  : 'text-[#370617]/80 hover:text-[#370617] font-medium'
+              }`}
             >
               Showrooms
             </button>
@@ -309,7 +344,39 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
               className="flex items-center gap-2 w-full text-left py-2.5 font-medium text-[#524346] hover:text-[#370617] border-b border-[#f2e5e6]"
             >
               <span className="material-symbols-outlined text-lg">diamond</span>
-              <span>Gold Jewellery Catalogue</span>
+              <span>All Gold Catalogue</span>
+            </button>
+
+            <button 
+              onClick={() => { setActiveView('earrings'); setMobileMenuOpen(false); }}
+              className="flex items-center gap-2 w-full text-left py-2.5 font-medium text-[#524346] hover:text-[#370617] border-b border-[#f2e5e6] pl-2"
+            >
+              <span className="material-symbols-outlined text-base text-[#B88A44]">arrow_right</span>
+              <span>Earrings Collection</span>
+            </button>
+
+            <button 
+              onClick={() => { setActiveView('necklaces'); setMobileMenuOpen(false); }}
+              className="flex items-center gap-2 w-full text-left py-2.5 font-medium text-[#524346] hover:text-[#370617] border-b border-[#f2e5e6] pl-2"
+            >
+              <span className="material-symbols-outlined text-base text-[#B88A44]">arrow_right</span>
+              <span>Necklaces & Haarams</span>
+            </button>
+
+            <button 
+              onClick={() => { setActiveView('bangles'); setMobileMenuOpen(false); }}
+              className="flex items-center gap-2 w-full text-left py-2.5 font-medium text-[#524346] hover:text-[#370617] border-b border-[#f2e5e6] pl-2"
+            >
+              <span className="material-symbols-outlined text-base text-[#B88A44]">arrow_right</span>
+              <span>Bangles & Kadas</span>
+            </button>
+
+            <button 
+              onClick={() => { setActiveView('bridal'); setMobileMenuOpen(false); }}
+              className="flex items-center gap-2 w-full text-left py-2.5 font-medium text-[#524346] hover:text-[#370617] border-b border-[#f2e5e6] pl-2"
+            >
+              <span className="material-symbols-outlined text-base text-[#B88A44]">arrow_right</span>
+              <span>Bridal Trousseau</span>
             </button>
 
             <button 
