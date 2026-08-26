@@ -7,7 +7,7 @@ import { getStoredUserProfile, saveUserProfile, clearUserProfile } from '../data
 import { UserLoginModal } from '../components/UserLoginModal';
 import { Logo } from '../components/Logo';
 import { validateIndianMobile, validateDateOfBirth, validateFullName } from '../utils/validation';
-import { logCustomerVerificationToGoogleSheets } from '../data/sheetsIntegrationService';
+import { pushUserRegistrationToGoogleSheet } from '../data/sheetsIntegrationService';
 
 interface OnamCampaignViewProps {
   onNavigate: (view: ActiveView) => void;
@@ -310,17 +310,16 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
       dateOfBirth
     );
 
-    // Log to WebApp Google Sheets
+    // Log to Google Sheets service (Full Name, Mobile, DOB)
     try {
-      const sheetsResult = await logCustomerVerificationToGoogleSheets({
+      const sheetsResult = await pushUserRegistrationToGoogleSheet({
         fullName: userName.trim(),
         mobile: cleanMobile,
         dateOfBirth: dateOfBirth,
+        email: userEmail.trim(),
         voucherCode: coupon.code,
-        discountAmount: coupon.discountAmount,
-        source: sourceParam,
-        verifiedAt: new Date().toISOString(),
-        status: 'VERIFIED_ACTIVE',
+        registrationType: 'onam_campaign',
+        status: `VERIFIED (${coupon.code} - ₹${coupon.discountAmount.toLocaleString('en-IN')})`,
       });
       setSheetsSyncStatus(sheetsResult.message);
     } catch (e) {

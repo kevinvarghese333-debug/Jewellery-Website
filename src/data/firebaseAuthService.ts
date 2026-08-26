@@ -21,6 +21,7 @@ import {
 } from '../lib/firebase';
 import { UserProfile, OrderRecord } from '../types';
 import { saveUserProfile, clearUserProfile, getStoredUserProfile } from './userSession';
+import { pushUserRegistrationToGoogleSheet } from './sheetsIntegrationService';
 
 const USERS_COLLECTION = 'users';
 const ORDERS_COLLECTION = 'orders';
@@ -159,6 +160,20 @@ export async function registerWithEmail(
   }
 
   saveUserProfile(profile);
+
+  // Push user registration data (Full Name, Mobile Number, DOB) to Google Sheets service
+  pushUserRegistrationToGoogleSheet({
+    fullName: profile.name,
+    mobile: profile.mobile,
+    dateOfBirth: profile.dateOfBirth,
+    email: profile.email,
+    city: profile.city,
+    registrationType: 'signup',
+    status: 'Verified (Email Registration)',
+  }).catch((err) => {
+    console.warn('[FirebaseAuthService] Google Sheets sync error:', err);
+  });
+
   return profile;
 }
 

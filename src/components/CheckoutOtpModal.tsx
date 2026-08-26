@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { sendDltSmsOtp, getDltConfig } from '../data/dltSmsConfig';
+import { pushUserRegistrationToGoogleSheet } from '../data/sheetsIntegrationService';
+import { getStoredUserProfile } from '../data/userSession';
 import { Logo } from './Logo';
 
 interface CheckoutOtpModalProps {
@@ -145,6 +147,17 @@ export const CheckoutOtpModal: React.FC<CheckoutOtpModalProps> = ({
     }
 
     if (enteredCode === generatedOtp || enteredCode === '123456') {
+      const activeUser = getStoredUserProfile();
+      const cleanPhone = phoneNumber.replace(/\D/g, '').slice(-10);
+      pushUserRegistrationToGoogleSheet({
+        fullName: activeUser?.name || `Checkout Patron (+91 ${cleanPhone})`,
+        mobile: cleanPhone,
+        dateOfBirth: activeUser?.dateOfBirth,
+        email: activeUser?.email,
+        registrationType: 'checkout_otp',
+        status: `OTP Verified at Checkout (Order Value ₹${grandTotal.toLocaleString('en-IN')})`,
+      }).catch((err) => console.warn('Google Sheets sync error on checkout OTP:', err));
+
       onVerified(phoneNumber);
     } else {
       setError(`Invalid verification code. Please check your SMS or use code ${generatedOtp}.`);

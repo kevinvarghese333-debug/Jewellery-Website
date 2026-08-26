@@ -1,7 +1,217 @@
 import { OnamCoupon, CampaignMetrics } from '../types';
 
 // Discount tiers as specified in brief
-export const DISCOUNT_TIERS = [50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000];
+export const DISCOUNT_TIERS = [50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000] as const;
+
+export const TIER_PRESETS = {
+  balanced: {
+    name: 'Balanced Festive (Standard)',
+    desc: 'Heavily weighted towards ₹50–₹500 with balanced lottery excitement for ₹1K–₹50K',
+    weights: { 50: 40, 100: 25, 250: 15, 500: 10, 1000: 5, 2500: 2.5, 5000: 1.5, 10000: 0.6, 25000: 0.3, 50000: 0.1 },
+  },
+  budget_saver: {
+    name: 'Budget-Safe Retail Mode',
+    desc: 'Focuses payouts on ₹50 to ₹250 tiers, strictly rationing higher-value vouchers',
+    weights: { 50: 60, 100: 25, 250: 10, 500: 3.5, 1000: 1, 2500: 0.3, 5000: 0.15, 10000: 0.04, 25000: 0.01, 50000: 0.001 },
+  },
+  high_excitement: {
+    name: 'High-Reward Festive Mode',
+    desc: 'Boosts probability for medium and high value vouchers (₹1K, ₹5K, ₹10K, ₹25K, ₹50K)',
+    weights: { 50: 15, 100: 15, 250: 20, 500: 20, 1000: 15, 2500: 8, 5000: 4, 10000: 2, 25000: 0.8, 50000: 0.2 },
+  },
+  uniform: {
+    name: 'Uniform Equal Spread',
+    desc: 'Equal chance across all active tiers in the min-max range',
+    weights: { 50: 10, 100: 10, 250: 10, 500: 10, 1000: 10, 2500: 10, 5000: 10, 10000: 10, 25000: 10, 50000: 10 },
+  },
+} as const;
+
+export interface CouponPoolConfig {
+  minDiscount: number; // e.g. 50 (slider 50 to 5000)
+  maxDiscount: number; // e.g. 50000 (slider 1000 to 50000)
+  allocationMode: 'custom' | 'balanced' | 'budget_saver' | 'high_excitement' | 'uniform';
+  // Quota limits for top tiers & all tiers
+  max50k: number;
+  max25k: number;
+  max10k: number;
+  max5k: number;
+  max2500: number;
+  max1000?: number;
+  max500?: number;
+  max250?: number;
+  max100?: number;
+  max50?: number;
+  // Probability weight sliders for all tiers (₹50 to ₹50,000)
+  tierWeights: Record<number, number>;
+  // Quota limits mapping
+  tierQuotas: Record<number, number>;
+}
+
+const DEFAULT_POOL_CONFIG: CouponPoolConfig = {
+  minDiscount: 50,
+  maxDiscount: 50000,
+  allocationMode: 'balanced',
+  max50k: 1,
+  max25k: 2,
+  max10k: 5,
+  max5k: 10,
+  max2500: 15,
+  max1000: 50,
+  max500: 200,
+  max250: 500,
+  max100: 1000,
+  max50: 5000,
+  tierWeights: {
+    50: 40,
+    100: 25,
+    250: 15,
+    500: 10,
+    1000: 5,
+    2500: 2.5,
+    5000: 1.5,
+    10000: 0.6,
+    25000: 0.3,
+    50000: 0.1,
+  },
+  tierQuotas: {
+    50: 5000,
+    100: 1000,
+    250: 500,
+    500: 200,
+    1000: 50,
+    2500: 15,
+    5000: 10,
+    10000: 5,
+    25000: 2,
+    50000: 1,
+  },
+};
+
+const POOL_CONFIG_KEY = 'kavitha_coupon_pool_config_v3';
+
+export function getCouponPoolConfig(): CouponPoolConfig {
+  try {
+    const raw = localStorage.getItem(POOL_CONFIG_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        ...DEFAULT_POOL_CONFIG,
+        ...parsed,
+        tierWeights: {
+          ...DEFAULT_POOL_CONFIG.tierWeights,
+          ...(parsed.tierWeights || {}),
+        },
+        tierQuotas: {
+          ...DEFAULT_POOL_CONFIG.tierQuotas,
+          ...(parsed.tierQuotas || {}),
+        },
+      };
+    }
+  } catch (e) {
+    console.error('Failed to load coupon pool config', e);
+  }
+  return DEFAULT_POOL_CONFIG;
+}
+
+export function saveCouponPoolConfig(config: CouponPoolConfig): void {
+  try {
+    // Keep max50k..max2500 in sync with tierQuotas
+    const syncedConfig: CouponPoolConfig = {
+      ...config,
+      max50k: config.tierQuotas?.[50000] ?? config.max50k ?? 1,
+      max25k: config.tierQuotas?.[25000] ?? config.max25k ?? 2,
+      max10k: config.tierQuotas?.[10000] ?? config.max10k ?? 5,
+      max5k: config.tierQuotas?.[5000] ?? config.max5k ?? 10,
+      max2500: config.tierQuotas?.[2500] ?? config.max2500 ?? 15,
+    };
+    localStorage.setItem(POOL_CONFIG_KEY, JSON.stringify(syncedConfig));
+  } catch (e) {
+    console.error('Failed to save coupon pool config', e);
+  }
+}
+
+/**
+ * Calculates normalized percentage probabilities for each tier
+ */
+export function calculateNormalizedPercentages(
+  tierWeights: Record<number, number>,
+  minDiscount: number = 50,
+  maxDiscount: number = 50000
+): Record<number, number> {
+  const eligibleTiers = DISCOUNT_TIERS.filter((t) => t >= minDiscount && t <= maxDiscount);
+  const totalWeight = eligibleTiers.reduce((acc, t) => acc + (tierWeights[t] || 0), 0);
+
+  const result: Record<number, number> = {};
+  DISCOUNT_TIERS.forEach((t) => {
+    if (t < minDiscount || t > maxDiscount || totalWeight <= 0) {
+      result[t] = 0;
+    } else {
+      result[t] = Math.round(((tierWeights[t] || 0) / totalWeight) * 1000) / 10; // 1 decimal place
+    }
+  });
+  return result;
+}
+
+/**
+ * Core Random Allocation Engine: Samples a random discount from ₹50 to ₹50,000
+ * respecting min/max sliders, probability weights, and tier quota limits.
+ */
+export function sampleRandomDiscount(
+  config?: CouponPoolConfig,
+  currentCoupons?: OnamCoupon[]
+): number {
+  const activeConfig = config || getCouponPoolConfig();
+  const coupons = currentCoupons || getStoredCoupons();
+
+  const minBound = activeConfig.minDiscount || 50;
+  const maxBound = activeConfig.maxDiscount || 50000;
+
+  // Filter tiers within active min-max slider range
+  const candidateTiers = DISCOUNT_TIERS.filter((t) => t >= minBound && t <= maxBound);
+
+  // Check remaining quota for each candidate tier
+  const tierRemainingQuotas: Record<number, number> = {};
+  candidateTiers.forEach((tier) => {
+    const maxAllowed =
+      activeConfig.tierQuotas?.[tier] ??
+      (tier === 50000 ? activeConfig.max50k :
+       tier === 25000 ? activeConfig.max25k :
+       tier === 10000 ? activeConfig.max10k :
+       tier === 5000 ? activeConfig.max5k :
+       tier === 2500 ? activeConfig.max2500 : 99999);
+
+    const issuedCount = coupons.filter((c) => c.discountAmount === tier).length;
+    tierRemainingQuotas[tier] = Math.max(0, maxAllowed - issuedCount);
+  });
+
+  // Filter to tiers that still have quota available
+  const availableTiers = candidateTiers.filter((t) => tierRemainingQuotas[t] > 0);
+
+  if (availableTiers.length === 0) {
+    // If all candidate quotas exhausted, return lowest valid candidate or fallback to 50
+    return candidateTiers[0] || 50;
+  }
+
+  // Calculate total weight of available tiers
+  const weights = activeConfig.tierWeights || DEFAULT_POOL_CONFIG.tierWeights;
+  const totalWeight = availableTiers.reduce((sum, t) => sum + (weights[t] || 1), 0);
+
+  if (totalWeight <= 0) {
+    return availableTiers[0];
+  }
+
+  // Weighted random roll
+  let randomVal = Math.random() * totalWeight;
+  for (const tier of availableTiers) {
+    const weight = weights[tier] || 1;
+    if (randomVal <= weight) {
+      return tier;
+    }
+    randomVal -= weight;
+  }
+
+  return availableTiers[availableTiers.length - 1];
+}
 
 // Initial seed mock coupons
 const INITIAL_COUPONS: OnamCoupon[] = [
@@ -87,42 +297,6 @@ export function getCouponByCode(code: string): OnamCoupon | undefined {
   return coupons.find((c) => c.code.toUpperCase() === cleanCode);
 }
 
-export interface CouponPoolConfig {
-  max50k: number; // default 1
-  max25k: number; // default 2
-  max10k: number; // default 5
-  max5k: number;  // default 10
-  max2500: number; // default 15
-}
-
-const DEFAULT_POOL_CONFIG: CouponPoolConfig = {
-  max50k: 1,
-  max25k: 2,
-  max10k: 5,
-  max5k: 10,
-  max2500: 15,
-};
-
-const POOL_CONFIG_KEY = 'kavitha_coupon_pool_config_v2';
-
-export function getCouponPoolConfig(): CouponPoolConfig {
-  try {
-    const raw = localStorage.getItem(POOL_CONFIG_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch (e) {
-    console.error('Failed to load coupon pool config', e);
-  }
-  return DEFAULT_POOL_CONFIG;
-}
-
-export function saveCouponPoolConfig(config: CouponPoolConfig): void {
-  try {
-    localStorage.setItem(POOL_CONFIG_KEY, JSON.stringify(config));
-  } catch (e) {
-    console.error('Failed to save coupon pool config', e);
-  }
-}
-
 export function calculateEffectiveMakingChargeDiscount(
   couponValue: number,
   makingCharges: number
@@ -177,49 +351,8 @@ export function generateOnamCoupon(
   const currentCoupons = getStoredCoupons();
   const config = getCouponPoolConfig();
 
-  // Count existing issued top-tier coupons
-  const issued50k = currentCoupons.filter((c) => c.discountAmount === 50000).length;
-  const issued25k = currentCoupons.filter((c) => c.discountAmount === 25000).length;
-  const issued10k = currentCoupons.filter((c) => c.discountAmount === 10000).length;
-  const issued5k = currentCoupons.filter((c) => c.discountAmount === 5000).length;
-  const issued2500 = currentCoupons.filter((c) => c.discountAmount === 2500).length;
-
-  let selectedDiscount = 50; // default low-tier baseline
-
-  // Quota allocation algorithm:
-  // 1. Try ₹50,000 if quota remaining (1 max total)
-  if (issued50k < config.max50k && Math.random() < 0.08) {
-    selectedDiscount = 50000;
-  } 
-  // 2. Try ₹25,000 if quota remaining (2 max total)
-  else if (issued25k < config.max25k && Math.random() < 0.12) {
-    selectedDiscount = 25000;
-  } 
-  // 3. Try ₹10,000 if quota remaining (5 max total)
-  else if (issued10k < config.max10k && Math.random() < 0.18) {
-    selectedDiscount = 10000;
-  } 
-  // 4. Try ₹5,000 if quota remaining (10 max total)
-  else if (issued5k < config.max5k && Math.random() < 0.22) {
-    selectedDiscount = 5000;
-  } 
-  // 5. Try ₹2,500 if quota remaining (15 max total)
-  else if (issued2500 < config.max2500 && Math.random() < 0.28) {
-    selectedDiscount = 2500;
-  } 
-  // 6. Otherwise, shuffle under ₹50 to ₹500 (mostly aligned to lower end)
-  else {
-    const rand = Math.random();
-    if (rand < 0.55) {
-      selectedDiscount = 50;    // 55% chance
-    } else if (rand < 0.80) {
-      selectedDiscount = 100;   // 25% chance
-    } else if (rand < 0.92) {
-      selectedDiscount = 250;   // 12% chance
-    } else {
-      selectedDiscount = 500;   // 8% chance
-    }
-  }
+  // Draw random discount adhering to configurable tier weights, range bounds, and quotas
+  const selectedDiscount = sampleRandomDiscount(config, currentCoupons);
 
   // Generate unique 4-char hex suffix
   const randomHex = Math.floor(Math.random() * 65535).toString(16).toUpperCase().padStart(4, '0');

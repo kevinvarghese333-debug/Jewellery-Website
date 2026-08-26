@@ -6,6 +6,10 @@ import {
   getCouponPoolConfig, 
   saveCouponPoolConfig, 
   CouponPoolConfig,
+  DISCOUNT_TIERS,
+  TIER_PRESETS,
+  calculateNormalizedPercentages,
+  sampleRandomDiscount,
   calculateEffectiveMakingChargeDiscount,
   generateOnamCoupon,
   saveStoredCoupons
@@ -19,6 +23,7 @@ import { getGoldRateForPurity } from '../data/products';
 import { AdminProductManager } from '../components/AdminProductManager';
 import { AdminAppointmentsManager } from '../components/AdminAppointmentsManager';
 import { AdminBrandingManager } from '../components/AdminBrandingManager';
+import { AdminGoogleSheetsManager } from '../components/AdminGoogleSheetsManager';
 
 interface AdminCampaignViewProps {
   onNavigate: (view: ActiveView) => void;
@@ -81,12 +86,38 @@ export const AdminCampaignView: React.FC<AdminCampaignViewProps> = ({
   const [manualSource, setManualSource] = useState<string>('store-vip');
   const [manualNotice, setManualNotice] = useState<string>('');
 
-  // Editable Quotas
-  const [q50k, setQ50k] = useState<number>(poolConfig.max50k);
-  const [q25k, setQ25k] = useState<number>(poolConfig.max25k);
-  const [q10k, setQ10k] = useState<number>(poolConfig.max10k);
-  const [q5k, setQ5k] = useState<number>(poolConfig.max5k);
-  const [q2500, setQ2500] = useState<number>(poolConfig.max2500);
+  // Editable Quotas & ₹50 to ₹50,000 Allocation Engine States
+  const [minDiscount, setMinDiscount] = useState<number>(poolConfig.minDiscount || 50);
+  const [maxDiscount, setMaxDiscount] = useState<number>(poolConfig.maxDiscount || 50000);
+  const [allocationMode, setAllocationMode] = useState<string>(poolConfig.allocationMode || 'balanced');
+  const [tierWeights, setTierWeights] = useState<Record<number, number>>({
+    50: poolConfig.tierWeights?.[50] ?? 40,
+    100: poolConfig.tierWeights?.[100] ?? 25,
+    250: poolConfig.tierWeights?.[250] ?? 15,
+    500: poolConfig.tierWeights?.[500] ?? 10,
+    1000: poolConfig.tierWeights?.[1000] ?? 5,
+    2500: poolConfig.tierWeights?.[2500] ?? 2.5,
+    5000: poolConfig.tierWeights?.[5000] ?? 1.5,
+    10000: poolConfig.tierWeights?.[10000] ?? 0.6,
+    25000: poolConfig.tierWeights?.[25000] ?? 0.3,
+    50000: poolConfig.tierWeights?.[50000] ?? 0.1,
+  });
+  const [tierQuotas, setTierQuotas] = useState<Record<number, number>>({
+    50: poolConfig.tierQuotas?.[50] ?? 5000,
+    100: poolConfig.tierQuotas?.[100] ?? 1000,
+    250: poolConfig.tierQuotas?.[250] ?? 500,
+    500: poolConfig.tierQuotas?.[500] ?? 200,
+    1000: poolConfig.tierQuotas?.[1000] ?? 50,
+    2500: poolConfig.tierQuotas?.[2500] ?? poolConfig.max2500 ?? 15,
+    5000: poolConfig.tierQuotas?.[5000] ?? poolConfig.max5k ?? 10,
+    10000: poolConfig.tierQuotas?.[10000] ?? poolConfig.max10k ?? 5,
+    25000: poolConfig.tierQuotas?.[25000] ?? poolConfig.max25k ?? 2,
+    50000: poolConfig.tierQuotas?.[50000] ?? poolConfig.max50k ?? 1,
+  });
+
+  // Simulator Test Draw state
+  const [testSimResult, setTestSimResult] = useState<{ amount: number; time: string; prob: number } | null>(null);
+  const [testSimHistory, setTestSimHistory] = useState<number[]>([]);
 
   // BSNL DLT SMS Configuration state
   const [dltConfig, setDltConfig] = useState<BsnlDltConfig>(getDltConfig());
@@ -101,7 +132,7 @@ export const AdminCampaignView: React.FC<AdminCampaignViewProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Admin Navigation Tabs
-  const [activeAdminTab, setActiveAdminTab] = useState<'branding' | 'leads' | 'rates_inventory' | 'onam_campaign' | 'dlt_sms'>('branding');
+  const [activeAdminTab, setActiveAdminTab] = useState<'branding' | 'registrations_sheets' | 'leads' | 'rates_inventory' | 'onam_campaign' | 'dlt_sms'>('branding');
 
   const handleSaveDltConfig = (e: React.FormEvent) => {
     e.preventDefault();
@@ -157,19 +188,88 @@ export const AdminCampaignView: React.FC<AdminCampaignViewProps> = ({
     }
   };
 
-  // Save Campaign Quotas Config
-  const handleSaveQuotas = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Helper functions for Probability & Quota configuration
+  const handleApplyPreset = (presetKey: keyof typeof TIER_PRESETS) => {
+    const preset = TIER_PRESETS[presetKey];
+    if (preset) {
+      setAllocationMode(presetKey);
+      setTierWeights({ ...preset.weights });
+    }
+  };
+
+  const handleWeightChange = (tier: number, newWeight: number) => {
+    setAllocationMode('custom');
+    setTierWeights((prev) => ({
+      ...prev,
+      [tier]: newWeight,
+    }));
+  };
+
+  const handleQuotaChange = (tier: number, newQuota: number) => {
+    setTierQuotas((prev) => ({
+      ...prev,
+      [tier]: Math.max(0, newQuota),
+    }));
+  };
+
+  const normalizedProbabilities = calculateNormalizedPercentages(tierWeights, minDiscount, maxDiscount);
+
+  const expectedAverageCost = DISCOUNT_TIERS.reduce(
+    (acc, t) => acc + (t * (normalizedProbabilities[t] || 0)) / 100,
+    0
+  );
+
+  const maxTotalLiability = DISCOUNT_TIERS.reduce(
+    (acc, t) => acc + t * (tierQuotas[t] || 0),
+    0
+  );
+
+  const handleTestRoll = () => {
+    const testConfig: CouponPoolConfig = {
+      minDiscount,
+      maxDiscount,
+      allocationMode: allocationMode as any,
+      max50k: tierQuotas[50000] || 1,
+      max25k: tierQuotas[25000] || 2,
+      max10k: tierQuotas[10000] || 5,
+      max5k: tierQuotas[5000] || 10,
+      max2500: tierQuotas[2500] || 15,
+      tierWeights,
+      tierQuotas,
+    };
+    const sampled = sampleRandomDiscount(testConfig, coupons);
+    const prob = normalizedProbabilities[sampled] || 0;
+    setTestSimResult({
+      amount: sampled,
+      time: new Date().toLocaleTimeString(),
+      prob,
+    });
+    setTestSimHistory((prev) => [sampled, ...prev].slice(0, 8));
+  };
+
+  // Save Campaign Quotas & Random Allocation Config
+  const handleSaveQuotas = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     const updated: CouponPoolConfig = {
-      max50k: q50k,
-      max25k: q25k,
-      max10k: q10k,
-      max5k: q5k,
-      max2500: q2500
+      minDiscount,
+      maxDiscount,
+      allocationMode: allocationMode as any,
+      max50k: tierQuotas[50000] || 1,
+      max25k: tierQuotas[25000] || 2,
+      max10k: tierQuotas[10000] || 5,
+      max5k: tierQuotas[5000] || 10,
+      max2500: tierQuotas[2500] || 15,
+      max1000: tierQuotas[1000] || 50,
+      max500: tierQuotas[500] || 200,
+      max250: tierQuotas[250] || 500,
+      max100: tierQuotas[100] || 1000,
+      max50: tierQuotas[50] || 5000,
+      tierWeights,
+      tierQuotas,
     };
     setPoolConfig(updated);
     saveCouponPoolConfig(updated);
-    setConfigNotice('✓ Campaign quota pool limits updated successfully!');
+    setConfigNotice('✓ Random allocation engine and quota pool settings saved successfully!');
     setTimeout(() => setConfigNotice(''), 4000);
   };
 
@@ -371,7 +471,19 @@ export const AdminCampaignView: React.FC<AdminCampaignViewProps> = ({
             }`}
           >
             <span className="material-symbols-outlined text-base">palette</span>
-            <span>Store Media & Branding (Logo / Hero)</span>
+            <span>Store Media & Branding</span>
+          </button>
+
+          <button
+            onClick={() => setActiveAdminTab('registrations_sheets')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all ${
+              activeAdminTab === 'registrations_sheets'
+                ? 'bg-[#C7E24E] text-[#070A0D] shadow-md ring-2 ring-[#C7E24E]/40'
+                : 'bg-[#20221C] text-[#ECEAE2]/80 hover:text-white hover:bg-[#2a2d24]'
+            }`}
+          >
+            <span className="material-symbols-outlined text-base">how_to_reg</span>
+            <span>Patron Registrations (Google Sheets)</span>
           </button>
 
           <button
@@ -383,7 +495,7 @@ export const AdminCampaignView: React.FC<AdminCampaignViewProps> = ({
             }`}
           >
             <span className="material-symbols-outlined text-base">table_chart</span>
-            <span>Leads & Appointments (Google Sheets)</span>
+            <span>Appointments & Leads</span>
           </button>
 
           <button
@@ -427,6 +539,13 @@ export const AdminCampaignView: React.FC<AdminCampaignViewProps> = ({
         {activeAdminTab === 'branding' && (
           <div className="animate-fadeIn">
             <AdminBrandingManager />
+          </div>
+        )}
+
+        {/* TAB 0.5: Patron Registrations (Google Sheets) */}
+        {activeAdminTab === 'registrations_sheets' && (
+          <div className="animate-fadeIn">
+            <AdminGoogleSheetsManager />
           </div>
         )}
 
@@ -604,7 +723,7 @@ export const AdminCampaignView: React.FC<AdminCampaignViewProps> = ({
             </div>
           </div>
 
-          {/* Manual Voucher Issuer Override */}
+          {/* Manual Voucher Issuer Override with Slider */}
           <div className="bg-[#20221C] p-6 rounded-2xl border border-[#4E4C4B] space-y-4 shadow-xl">
             <div className="flex justify-between items-center border-b border-[#4E4C4B]/40 pb-3">
               <div>
@@ -614,87 +733,174 @@ export const AdminCampaignView: React.FC<AdminCampaignViewProps> = ({
               <span className="material-symbols-outlined text-[#C7E24E]">card_giftcard</span>
             </div>
 
-            <form onSubmit={handleIssueManualVoucher} className="space-y-3 text-xs font-sans">
-              <div>
-                <label className="block text-[#ECEAE2]/80 font-medium mb-1">Customer Mobile</label>
-                <input
-                  type="tel"
-                  placeholder="e.g. 9876543210"
-                  value={manualMobile}
-                  onChange={(e) => setManualMobile(e.target.value)}
-                  className="w-full bg-[#070A0D] border border-[#4E4C4B] p-2 rounded-xl text-xs text-[#ECEAE2] font-data font-bold outline-none focus:border-[#C7E24E]"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
+            <form onSubmit={handleIssueManualVoucher} className="space-y-4 text-xs font-sans">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[#ECEAE2]/80 font-medium mb-1">Name (Optional)</label>
+                  <label className="block text-[#ECEAE2]/80 font-medium mb-1">Customer Mobile</label>
+                  <input
+                    type="tel"
+                    placeholder="e.g. 9876543210"
+                    value={manualMobile}
+                    onChange={(e) => setManualMobile(e.target.value)}
+                    className="w-full bg-[#070A0D] border border-[#4E4C4B] p-2.5 rounded-xl text-xs text-[#ECEAE2] font-data font-bold outline-none focus:border-[#C7E24E]"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[#ECEAE2]/80 font-medium mb-1">Customer Name (Optional)</label>
                   <input
                     type="text"
                     placeholder="Anjali Nair"
                     value={manualName}
                     onChange={(e) => setManualName(e.target.value)}
-                    className="w-full bg-[#070A0D] border border-[#4E4C4B] p-2 rounded-xl text-xs text-[#ECEAE2] outline-none"
+                    className="w-full bg-[#070A0D] border border-[#4E4C4B] p-2.5 rounded-xl text-xs text-[#ECEAE2] outline-none focus:border-[#C7E24E]"
                   />
                 </div>
-                <div>
-                  <label className="block text-[#ECEAE2]/80 font-medium mb-1">Discount Amount</label>
-                  <select
-                    value={manualDiscount}
-                    onChange={(e) => setManualDiscount(Number(e.target.value))}
-                    className="w-full bg-[#070A0D] border border-[#4E4C4B] p-2 rounded-xl text-xs font-data font-bold text-[#C7E24E] outline-none"
-                  >
-                    <option value={50000}>₹50,000</option>
-                    <option value={25000}>₹25,000</option>
-                    <option value={10000}>₹10,000</option>
-                    <option value={5000}>₹5,000</option>
-                    <option value={2500}>₹2,500</option>
-                    <option value={1000}>₹1,000</option>
-                    <option value={500}>₹500</option>
-                    <option value={100}>₹100</option>
-                  </select>
+              </div>
+
+              {/* Discount Amount Allocation Slider & Presets */}
+              <div className="bg-[#070A0D] p-3.5 rounded-xl border border-[#4E4C4B]/60 space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-[#ECEAE2]/80 font-medium">Voucher Discount Allocation</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-data text-base font-extrabold text-[#C7E24E]">
+                      ₹{manualDiscount.toLocaleString('en-IN')}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const roll = sampleRandomDiscount({
+                          minDiscount,
+                          maxDiscount,
+                          allocationMode: allocationMode as any,
+                          max50k: tierQuotas[50000] || 1,
+                          max25k: tierQuotas[25000] || 2,
+                          max10k: tierQuotas[10000] || 5,
+                          max5k: tierQuotas[5000] || 10,
+                          max2500: tierQuotas[2500] || 15,
+                          tierWeights,
+                          tierQuotas,
+                        }, coupons);
+                        setManualDiscount(roll);
+                      }}
+                      className="bg-[#20221C] hover:bg-[#2A2D24] text-[#C7E24E] border border-[#C7E24E]/40 px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-colors"
+                      title="Roll from configured random allocation engine"
+                    >
+                      <span className="material-symbols-outlined text-xs">casino</span>
+                      <span>Random Roll</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Slider (₹50 to ₹50,000) */}
+                <div className="space-y-1">
+                  <input
+                    type="range"
+                    min="0"
+                    max={DISCOUNT_TIERS.length - 1}
+                    step="1"
+                    value={
+                      DISCOUNT_TIERS.indexOf(manualDiscount as any) !== -1
+                        ? DISCOUNT_TIERS.indexOf(manualDiscount as any)
+                        : DISCOUNT_TIERS.findIndex((t) => t >= manualDiscount) !== -1
+                        ? DISCOUNT_TIERS.findIndex((t) => t >= manualDiscount)
+                        : 0
+                    }
+                    onChange={(e) => {
+                      const idx = Number(e.target.value);
+                      if (DISCOUNT_TIERS[idx]) {
+                        setManualDiscount(DISCOUNT_TIERS[idx]);
+                      }
+                    }}
+                    className="w-full h-2 bg-[#20221C] rounded-lg appearance-none cursor-pointer accent-[#C7E24E]"
+                  />
+                  <div className="flex justify-between text-[10px] text-[#ECEAE2]/40 font-data">
+                    <span>₹50</span>
+                    <span>₹500</span>
+                    <span>₹5,000</span>
+                    <span>₹25,000</span>
+                    <span>₹50,000</span>
+                  </div>
+                </div>
+
+                {/* Quick Selection Preset Chips */}
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {DISCOUNT_TIERS.map((tier) => (
+                    <button
+                      key={tier}
+                      type="button"
+                      onClick={() => setManualDiscount(tier)}
+                      className={`px-2 py-1 rounded-lg text-[10px] font-data font-bold transition-all ${
+                        manualDiscount === tier
+                          ? 'bg-[#C7E24E] text-[#070A0D] shadow-sm'
+                          : 'bg-[#20221C] text-[#ECEAE2]/70 hover:text-[#ECEAE2] hover:bg-[#2c2f24] border border-[#4E4C4B]/40'
+                      }`}
+                    >
+                      {tier >= 1000 ? `₹${tier / 1000}K` : `₹${tier}`}
+                    </button>
+                  ))}
                 </div>
               </div>
 
               <button
                 type="submit"
-                className="w-full bg-[#B88A44] hover:bg-[#a3793b] text-white py-2.5 rounded-xl font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5"
+                className="w-full bg-[#B88A44] hover:bg-[#a3793b] text-white py-2.5 rounded-xl font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 shadow-md"
               >
                 <span className="material-symbols-outlined text-base">send</span>
-                <span>Generate & Issue Voucher</span>
+                <span>Generate & Issue Voucher (₹{manualDiscount.toLocaleString('en-IN')})</span>
               </button>
 
               {manualNotice && (
-                <p className="text-[11px] text-[#C7E24E] bg-[#C7E24E]/10 p-2 rounded-lg border border-[#C7E24E]/30 text-center font-bold animate-fadeIn">
+                <p className="text-[11px] text-[#C7E24E] bg-[#C7E24E]/10 p-2.5 rounded-xl border border-[#C7E24E]/30 text-center font-bold animate-fadeIn">
                   {manualNotice}
                 </p>
               )}
             </form>
           </div>
         </div>
-          {/* ========================================================= */}
-          {/* SECTION 2: COUPON INVENTORY ALLOCATION & QUOTA POOLS */}
-          {/* ========================================================= */}
-          <div className="bg-[#20221C] p-6 rounded-2xl border border-[#4E4C4B] space-y-6 shadow-xl">
+
+        {/* ========================================================= */}
+        {/* SECTION 2: ₹50 TO ₹50,000 RANDOM ALLOCATION & QUOTA ENGINE */}
+        {/* ========================================================= */}
+        <div className="bg-[#20221C] p-6 rounded-2xl border border-[#4E4C4B] space-y-6 shadow-xl">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-[#4E4C4B]/40 pb-4">
             <div>
-              <span className="text-[10px] uppercase tracking-widest text-[#C7E24E] font-bold">COUPON INVENTORY BACKEND</span>
-              <h3 className="font-serif-display text-xl font-bold text-[#ECEAE2]">
-                Onam Coupon Quota Pool Configuration
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] uppercase tracking-widest text-[#C7E24E] font-bold">
+                  DYNAMIC ALLOCATION ENGINE
+                </span>
+                <span className="bg-[#C7E24E]/20 text-[#C7E24E] text-[10px] font-bold px-2 py-0.5 rounded-full font-data">
+                  ₹50 → ₹50,000 RANGE
+                </span>
+              </div>
+              <h3 className="font-serif-display text-xl font-bold text-[#ECEAE2] mt-0.5">
+                Onam Coupon Random Allocation & Quota Sliders
               </h3>
               <p className="text-xs text-[#ECEAE2]/70 mt-1">
-                Set maximum distribution limits for high-tier grand coupons. Lower tier coupons (£50–£500) balance dynamically.
+                Fine-tune probability weights, minimum/maximum voucher boundaries, and issued limits for all 10 prize tiers.
               </p>
             </div>
 
-            <button
-              onClick={handleSaveQuotas}
-              className="bg-[#C7E24E] hover:bg-[#b0cc3d] text-[#070A0D] px-5 py-2.5 rounded-xl font-bold uppercase tracking-wider text-xs transition-all flex items-center gap-1.5 shadow-md"
-            >
-              <span className="material-symbols-outlined text-base">save</span>
-              <span>Save Quota Limits</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleTestRoll}
+                className="bg-[#20221C] hover:bg-[#2d3025] text-[#C7E24E] border border-[#C7E24E]/50 px-3.5 py-2 rounded-xl font-bold uppercase tracking-wider text-xs transition-all flex items-center gap-1.5"
+                title="Simulate a customer draw with current slider weights"
+              >
+                <span className="material-symbols-outlined text-base">casino</span>
+                <span>Test Draw</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSaveQuotas()}
+                className="bg-[#C7E24E] hover:bg-[#b0cc3d] text-[#070A0D] px-4 py-2 rounded-xl font-bold uppercase tracking-wider text-xs transition-all flex items-center gap-1.5 shadow-md"
+              >
+                <span className="material-symbols-outlined text-base">save</span>
+                <span>Save Allocation</span>
+              </button>
+            </div>
           </div>
 
           {configNotice && (
@@ -703,138 +909,255 @@ export const AdminCampaignView: React.FC<AdminCampaignViewProps> = ({
             </p>
           )}
 
-          {/* Editable Quota Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 text-xs font-sans">
-            {/* 50K Quota */}
-            <div className="bg-[#070A0D] p-4 rounded-xl border border-[#C7E24E] space-y-2">
-              <div className="flex justify-between items-center text-[#C7E24E] font-bold">
-                <span>₹50,000 Grand</span>
-                <span className="text-[10px] uppercase bg-[#C7E24E]/20 px-2 py-0.5 rounded">LIMIT</span>
+          {/* Allocation Strategy Presets & Range Boundary Sliders */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 text-xs font-sans">
+            {/* Preset Selector */}
+            <div className="bg-[#070A0D] p-4 rounded-xl border border-[#4E4C4B]/60 space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-[#ECEAE2] font-bold">Distribution Strategy Preset</span>
+                <span className="text-[10px] uppercase bg-[#20221C] text-[#C7E24E] px-2 py-0.5 rounded font-bold">
+                  {allocationMode.replace('_', ' ').toUpperCase()}
+                </span>
               </div>
-              <div className="flex items-center gap-2 pt-1">
-                <span className="text-[#ECEAE2]/60 text-[11px]">Issued / Max:</span>
-                <span className="font-data text-sm font-extrabold text-[#ECEAE2]">{issued50k} /</span>
-                <input
-                  type="number"
-                  min={issued50k}
-                  max="10"
-                  value={q50k}
-                  onChange={(e) => setQ50k(Number(e.target.value))}
-                  className="w-16 bg-[#20221C] border border-[#C7E24E] rounded px-2 py-0.5 font-data text-sm font-bold text-[#C7E24E]"
-                />
+              <div className="grid grid-cols-2 gap-1.5">
+                {(Object.keys(TIER_PRESETS) as Array<keyof typeof TIER_PRESETS>).map((key) => {
+                  const p = TIER_PRESETS[key];
+                  const isSelected = allocationMode === key;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => handleApplyPreset(key)}
+                      className={`p-2 rounded-lg text-left transition-all ${
+                        isSelected
+                          ? 'bg-[#C7E24E] text-[#070A0D] font-bold'
+                          : 'bg-[#20221C] text-[#ECEAE2]/80 hover:bg-[#2B2E24] border border-[#4E4C4B]/40'
+                      }`}
+                    >
+                      <div className="text-[11px] font-bold leading-tight">{p.name.split(' (')[0]}</div>
+                    </button>
+                  );
+                })}
               </div>
-              <div className="w-full bg-[#20221C] h-2 rounded-full overflow-hidden">
-                <div 
-                  className="bg-[#C7E24E] h-full" 
-                  style={{ width: `${Math.min(100, (issued50k / (q50k || 1)) * 100)}%` }} 
-                />
-              </div>
+              <p className="text-[11px] text-[#ECEAE2]/50 italic">
+                {TIER_PRESETS[allocationMode as keyof typeof TIER_PRESETS]?.desc ||
+                  'Custom manual slider probability weights applied.'}
+              </p>
             </div>
 
-            {/* 25K Quota */}
-            <div className="bg-[#070A0D] p-4 rounded-xl border border-[#B88A44] space-y-2">
-              <div className="flex justify-between items-center text-[#B88A44] font-bold">
-                <span>₹25,000 Bumper</span>
-                <span className="text-[10px] uppercase bg-[#B88A44]/20 px-2 py-0.5 rounded">LIMIT</span>
+            {/* Min & Max Range Slider Bounds */}
+            <div className="bg-[#070A0D] p-4 rounded-xl border border-[#4E4C4B]/60 space-y-3">
+              <span className="text-[#ECEAE2] font-bold block">Voucher Range Bounds (Min / Max)</span>
+              
+              <div className="space-y-2">
+                <div>
+                  <div className="flex justify-between text-[11px] text-[#ECEAE2]/70 mb-1">
+                    <span>Minimum Allowed Voucher:</span>
+                    <span className="font-data font-bold text-[#C7E24E]">₹{minDiscount}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="6" // up to ₹2,500
+                    value={DISCOUNT_TIERS.indexOf(minDiscount as any) !== -1 ? DISCOUNT_TIERS.indexOf(minDiscount as any) : 0}
+                    onChange={(e) => {
+                      const val = DISCOUNT_TIERS[Number(e.target.value)];
+                      if (val && val <= maxDiscount) setMinDiscount(val);
+                    }}
+                    className="w-full h-1.5 bg-[#20221C] rounded-lg appearance-none cursor-pointer accent-[#C7E24E]"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-[11px] text-[#ECEAE2]/70 mb-1">
+                    <span>Maximum Allowed Voucher:</span>
+                    <span className="font-data font-bold text-[#FFD700]">₹{maxDiscount.toLocaleString('en-IN')}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="3" // from ₹500
+                    max={DISCOUNT_TIERS.length - 1} // up to ₹50,000
+                    value={
+                      DISCOUNT_TIERS.indexOf(maxDiscount as any) !== -1
+                        ? DISCOUNT_TIERS.indexOf(maxDiscount as any)
+                        : DISCOUNT_TIERS.length - 1
+                    }
+                    onChange={(e) => {
+                      const val = DISCOUNT_TIERS[Number(e.target.value)];
+                      if (val && val >= minDiscount) setMaxDiscount(val);
+                    }}
+                    className="w-full h-1.5 bg-[#20221C] rounded-lg appearance-none cursor-pointer accent-[#FFD700]"
+                  />
+                </div>
               </div>
-              <div className="flex items-center gap-2 pt-1">
-                <span className="text-[#ECEAE2]/60 text-[11px]">Issued / Max:</span>
-                <span className="font-data text-sm font-extrabold text-[#ECEAE2]">{issued25k} /</span>
-                <input
-                  type="number"
-                  min={issued25k}
-                  max="20"
-                  value={q25k}
-                  onChange={(e) => setQ25k(Number(e.target.value))}
-                  className="w-16 bg-[#20221C] border border-[#B88A44] rounded px-2 py-0.5 font-data text-sm font-bold text-[#B88A44]"
-                />
-              </div>
-              <div className="w-full bg-[#20221C] h-2 rounded-full overflow-hidden">
-                <div 
-                  className="bg-[#B88A44] h-full" 
-                  style={{ width: `${Math.min(100, (issued25k / (q25k || 1)) * 100)}%` }} 
-                />
-              </div>
+              <p className="text-[10px] text-[#ECEAE2]/50">
+                Random draws strictly select only within ₹{minDiscount} and ₹{maxDiscount.toLocaleString('en-IN')}.
+              </p>
             </div>
 
-            {/* 10K Quota */}
-            <div className="bg-[#070A0D] p-4 rounded-xl border border-[#4E4C4B] space-y-2">
-              <div className="flex justify-between items-center text-[#ECEAE2] font-bold">
-                <span>₹10,000 Major</span>
-                <span className="text-[10px] uppercase bg-[#20221C] px-2 py-0.5 rounded">LIMIT</span>
-              </div>
-              <div className="flex items-center gap-2 pt-1">
-                <span className="text-[#ECEAE2]/60 text-[11px]">Issued / Max:</span>
-                <span className="font-data text-sm font-extrabold text-[#ECEAE2]">{issued10k} /</span>
-                <input
-                  type="number"
-                  min={issued10k}
-                  max="50"
-                  value={q10k}
-                  onChange={(e) => setQ10k(Number(e.target.value))}
-                  className="w-16 bg-[#20221C] border border-[#4E4C4B] rounded px-2 py-0.5 font-data text-sm font-bold text-[#ECEAE2]"
-                />
-              </div>
-              <div className="w-full bg-[#20221C] h-2 rounded-full overflow-hidden">
-                <div 
-                  className="bg-[#ECEAE2] h-full" 
-                  style={{ width: `${Math.min(100, (issued10k / (q10k || 1)) * 100)}%` }} 
-                />
-              </div>
-            </div>
+            {/* Live Financial Liability & Average Cost Metrics */}
+            <div className="bg-[#070A0D] p-4 rounded-xl border border-[#4E4C4B]/60 space-y-3 flex flex-col justify-between">
+              <span className="text-[#ECEAE2] font-bold block">Live Allocation Analytics</span>
+              
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-[#20221C] p-2.5 rounded-lg border border-[#4E4C4B]/40">
+                  <div className="text-[10px] text-[#ECEAE2]/60 uppercase">Expected Avg Payout</div>
+                  <div className="font-data text-lg font-extrabold text-[#C7E24E]">
+                    ₹{Math.round(expectedAverageCost).toLocaleString('en-IN')}
+                  </div>
+                  <div className="text-[9px] text-[#ECEAE2]/50">Per verified visitor</div>
+                </div>
 
-            {/* 5K Quota */}
-            <div className="bg-[#070A0D] p-4 rounded-xl border border-[#4E4C4B] space-y-2">
-              <div className="flex justify-between items-center text-[#ECEAE2]/80 font-bold">
-                <span>₹5,000 Festive</span>
-                <span className="text-[10px] uppercase bg-[#20221C] px-2 py-0.5 rounded">LIMIT</span>
+                <div className="bg-[#20221C] p-2.5 rounded-lg border border-[#4E4C4B]/40">
+                  <div className="text-[10px] text-[#ECEAE2]/60 uppercase">Max Liability Cap</div>
+                  <div className="font-data text-lg font-extrabold text-[#ECEAE2]">
+                    ₹{(maxTotalLiability / 100000).toFixed(2)}L
+                  </div>
+                  <div className="text-[9px] text-[#ECEAE2]/50">Total pool quota limit</div>
+                </div>
               </div>
-              <div className="flex items-center gap-2 pt-1">
-                <span className="text-[#ECEAE2]/60 text-[11px]">Issued / Max:</span>
-                <span className="font-data text-sm font-extrabold text-[#ECEAE2]">{issued5k} /</span>
-                <input
-                  type="number"
-                  min={issued5k}
-                  max="100"
-                  value={q5k}
-                  onChange={(e) => setQ5k(Number(e.target.value))}
-                  className="w-16 bg-[#20221C] border border-[#4E4C4B] rounded px-2 py-0.5 font-data text-sm font-bold text-[#ECEAE2]"
-                />
-              </div>
-              <div className="w-full bg-[#20221C] h-2 rounded-full overflow-hidden">
-                <div 
-                  className="bg-[#ECEAE2]/70 h-full" 
-                  style={{ width: `${Math.min(100, (issued5k / (q5k || 1)) * 100)}%` }} 
-                />
-              </div>
-            </div>
 
-            {/* 2.5K Quota */}
-            <div className="bg-[#070A0D] p-4 rounded-xl border border-[#4E4C4B] space-y-2">
-              <div className="flex justify-between items-center text-[#ECEAE2]/70 font-bold">
-                <span>₹2,500 Special</span>
-                <span className="text-[10px] uppercase bg-[#20221C] px-2 py-0.5 rounded">LIMIT</span>
-              </div>
-              <div className="flex items-center gap-2 pt-1">
-                <span className="text-[#ECEAE2]/60 text-[11px]">Issued / Max:</span>
-                <span className="font-data text-sm font-extrabold text-[#ECEAE2]">{issued2500} /</span>
-                <input
-                  type="number"
-                  min={issued2500}
-                  max="200"
-                  value={q2500}
-                  onChange={(e) => setQ2500(Number(e.target.value))}
-                  className="w-16 bg-[#20221C] border border-[#4E4C4B] rounded px-2 py-0.5 font-data text-sm font-bold text-[#ECEAE2]"
-                />
-              </div>
-              <div className="w-full bg-[#20221C] h-2 rounded-full overflow-hidden">
-                <div 
-                  className="bg-[#ECEAE2]/50 h-full" 
-                  style={{ width: `${Math.min(100, (issued2500 / (q2500 || 1)) * 100)}%` }} 
-                />
-              </div>
+              {/* Simulation Result Banner if test rolled */}
+              {testSimResult ? (
+                <div className="bg-[#C7E24E]/10 border border-[#C7E24E]/40 p-2 rounded-lg flex items-center justify-between animate-fadeIn">
+                  <div className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-sm text-[#C7E24E]">check_circle</span>
+                    <span className="text-[11px] text-[#ECEAE2] font-bold">
+                      Simulated Win: <span className="font-data text-[#C7E24E]">₹{testSimResult.amount.toLocaleString()}</span>
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-[#ECEAE2]/60 font-data">Odds: {testSimResult.prob}%</span>
+                </div>
+              ) : (
+                <div className="text-[10px] text-[#ECEAE2]/40 italic text-center py-1">
+                  Click &quot;Test Draw&quot; above to simulate real-time lottery spins
+                </div>
+              )}
             </div>
           </div>
+
+          {/* 10-Tier Allocation Matrix with Probability Sliders & Quota Controls */}
+          <div>
+            <div className="flex justify-between items-center mb-3">
+              <h4 className="text-sm font-bold text-[#ECEAE2] flex items-center gap-2">
+                <span>Tier Probability Sliders & Quota Limits (₹50 to ₹50,000)</span>
+                <span className="text-[10px] text-[#ECEAE2]/50 font-normal">
+                  (Adjust sliders to balance probability distribution)
+                </span>
+              </h4>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs font-sans">
+              {DISCOUNT_TIERS.map((tier) => {
+                const isOutOfRange = tier < minDiscount || tier > maxDiscount;
+                const issuedCount = coupons.filter((c) => c.discountAmount === tier).length;
+                const quotaMax = tierQuotas[tier] ?? (tier === 50000 ? 1 : tier === 25000 ? 2 : tier === 10000 ? 5 : tier === 5000 ? 10 : tier === 2500 ? 15 : 500);
+                const currentWeight = tierWeights[tier] ?? 10;
+                const probPercent = normalizedProbabilities[tier] || 0;
+
+                // Color accent according to tier
+                const isTopTier = tier >= 25000;
+                const isMidTier = tier >= 2500 && tier < 25000;
+                const borderColor = isTopTier
+                  ? 'border-[#FFD700]'
+                  : isMidTier
+                  ? 'border-[#C7E24E]'
+                  : 'border-[#4E4C4B]/60';
+
+                return (
+                  <div
+                    key={tier}
+                    className={`bg-[#070A0D] p-3.5 rounded-xl border ${borderColor} space-y-2.5 transition-all ${
+                      isOutOfRange ? 'opacity-40 grayscale' : 'hover:border-[#C7E24E]'
+                    }`}
+                  >
+                    {/* Header: Tier Amount and Badge */}
+                    <div className="flex justify-between items-center">
+                      <span className={`font-bold font-data text-sm ${isTopTier ? 'text-[#FFD700]' : isMidTier ? 'text-[#C7E24E]' : 'text-[#ECEAE2]'}`}>
+                        ₹{tier.toLocaleString('en-IN')}
+                      </span>
+                      <span
+                        className={`text-[9px] uppercase px-1.5 py-0.5 rounded font-bold ${
+                          isTopTier
+                            ? 'bg-[#FFD700]/20 text-[#FFD700]'
+                            : isMidTier
+                            ? 'bg-[#C7E24E]/20 text-[#C7E24E]'
+                            : 'bg-[#20221C] text-[#ECEAE2]/60'
+                        }`}
+                      >
+                        {tier === 50000 ? 'GRAND' : tier === 25000 ? 'BUMPER' : tier === 10000 ? 'MAJOR' : tier === 5000 ? 'FESTIVE' : tier === 2500 ? 'SPECIAL' : 'REWARD'}
+                      </span>
+                    </div>
+
+                    {/* Probability Weight Slider */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center text-[10px]">
+                        <span className="text-[#ECEAE2]/60">Probability:</span>
+                        <span className="font-data font-bold text-[#C7E24E]">{probPercent}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        step="0.5"
+                        disabled={isOutOfRange}
+                        value={currentWeight}
+                        onChange={(e) => handleWeightChange(tier, Number(e.target.value))}
+                        className="w-full h-1.5 bg-[#20221C] rounded-lg appearance-none cursor-pointer accent-[#C7E24E]"
+                      />
+                    </div>
+
+                    {/* Quota Limit Stepper & Usage */}
+                    <div className="pt-1 border-t border-[#20221C] space-y-1.5">
+                      <div className="flex justify-between items-center text-[10px]">
+                        <span className="text-[#ECEAE2]/60">Issued / Cap:</span>
+                        <div className="flex items-center gap-1 font-data font-bold">
+                          <span className="text-[#ECEAE2]">{issuedCount} /</span>
+                          <input
+                            type="number"
+                            min={issuedCount}
+                            max="50000"
+                            value={quotaMax}
+                            onChange={(e) => handleQuotaChange(tier, Number(e.target.value))}
+                            className="w-12 bg-[#20221C] border border-[#4E4C4B] rounded px-1 py-0.5 text-center font-data text-xs font-bold text-[#ECEAE2] outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Usage Progress bar */}
+                      <div className="w-full bg-[#20221C] h-1.5 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full ${isTopTier ? 'bg-[#FFD700]' : isMidTier ? 'bg-[#C7E24E]' : 'bg-[#ECEAE2]/70'}`}
+                          style={{ width: `${Math.min(100, (issuedCount / (quotaMax || 1)) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Test simulation history sequence */}
+          {testSimHistory.length > 0 && (
+            <div className="bg-[#070A0D] p-3 rounded-xl border border-[#4E4C4B]/40 flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-[#ECEAE2]/60 text-[11px] font-bold">Recent Test Draws:</span>
+              {testSimHistory.map((val, idx) => (
+                <span
+                  key={idx}
+                  className={`px-2 py-0.5 rounded text-[10px] font-data font-bold ${
+                    val >= 25000
+                      ? 'bg-[#FFD700]/20 text-[#FFD700] border border-[#FFD700]/40'
+                      : val >= 2500
+                      ? 'bg-[#C7E24E]/20 text-[#C7E24E] border border-[#C7E24E]/40'
+                      : 'bg-[#20221C] text-[#ECEAE2]/80 border border-[#4E4C4B]/40'
+                  }`}
+                >
+                  ₹{val.toLocaleString()}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* ========================================================= */}

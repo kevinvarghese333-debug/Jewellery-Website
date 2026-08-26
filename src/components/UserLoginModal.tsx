@@ -10,6 +10,7 @@ import {
 import { getStoredUserProfile, saveUserProfile } from '../data/userSession';
 import { getCouponByMobile } from '../data/campaignData';
 import { sendDltSmsOtp } from '../data/dltSmsConfig';
+import { pushUserRegistrationToGoogleSheet } from '../data/sheetsIntegrationService';
 import { PRODUCTS } from '../data/products';
 import { Logo } from './Logo';
 
@@ -117,6 +118,17 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
       setCurrentUser(profile);
       onUserChange?.(profile);
       await loadOrders(profile);
+
+      // Push registration data to Google Sheets service
+      pushUserRegistrationToGoogleSheet({
+        fullName: profile.name,
+        mobile: profile.mobile || 'Google Verified',
+        dateOfBirth: profile.dateOfBirth,
+        email: profile.email,
+        city: profile.city,
+        registrationType: 'signup',
+        status: 'Google OAuth Verified Patron',
+      }).catch((e) => console.warn('Google Sheets sync notice on Google Sign-In:', e));
     } catch (err: any) {
       console.error('Google Sign-In Error:', err);
       if (err.code === 'auth/popup-blocked') {
@@ -284,6 +296,20 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
     setPhoneMobileError('');
     onUserChange?.(profile);
     loadOrders(profile);
+
+    // Push user registration and OTP verification data to Google Sheets service
+    pushUserRegistrationToGoogleSheet({
+      fullName: profile.name,
+      mobile: clean,
+      dateOfBirth: profile.dateOfBirth,
+      email: profile.email,
+      city: profile.city,
+      registrationType: 'otp_verification',
+      status: 'OTP Verified (Phone Login)',
+      voucherCode: existingCoupon?.code,
+    }).catch((err) => {
+      console.warn('[UserLoginModal] Google Sheets sync error:', err);
+    });
   };
 
   const handleLogout = async () => {
