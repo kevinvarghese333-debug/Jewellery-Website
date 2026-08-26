@@ -38,8 +38,12 @@ export async function syncUserProfileFromFirestore(firebaseUser: User): Promise<
       profileData = snap.data() as Partial<UserProfile>;
     }
   } catch (err) {
-    console.warn('Could not read user profile from firestore (using Auth fallback):', err);
+    console.warn('[FirebaseAuthService] Could not read user profile from firestore (using Auth fallback):', err);
   }
+
+  const isGoogleProvider = firebaseUser.providerData?.some(
+    (provider) => provider.providerId?.includes('google')
+  ) || firebaseUser.providerId?.includes('google');
 
   const profile: UserProfile = {
     uid: firebaseUser.uid,
@@ -48,21 +52,23 @@ export async function syncUserProfileFromFirestore(firebaseUser: User): Promise<
     mobile: profileData.mobile || firebaseUser.phoneNumber || '',
     city: profileData.city || 'Kerala, India',
     photoURL: firebaseUser.photoURL || profileData.photoURL || undefined,
-    authProvider: (firebaseUser.providerData[0]?.providerId.includes('google') ? 'google' : 'password') as 'google' | 'password',
+    authProvider: isGoogleProvider ? 'google' : 'password',
     isLoggedIn: true,
     loyaltyPoints: profileData.loyaltyPoints ?? 3955,
     lastLoginAt: new Date().toISOString(),
     savedWishlistCount: profileData.savedWishlistCount || 0,
   };
 
-  // Upsert profile in firestore
+  // Upsert profile in firestore with creation timestamp tracking
   try {
     await setDoc(userRef, {
       ...profile,
+      createdAt: profileData.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }, { merge: true });
+    console.log('[FirebaseAuthService] User profile synchronized with Firestore successfully:', profile.uid);
   } catch (e) {
-    console.warn('Firestore setDoc failed for user profile:', e);
+    console.warn('[FirebaseAuthService] Firestore setDoc failed for user profile (falling back to local cache):', e);
   }
 
   saveUserProfile(profile);
@@ -70,12 +76,30 @@ export async function syncUserProfileFromFirestore(firebaseUser: User): Promise<
 }
 
 /**
- * Sign in with Google Popup
+ * Sign in / Create account with Google Popup
  */
 export async function loginWithGoogle(): Promise<UserProfile> {
-  const result = await signInWithPopup(auth, googleProvider);
-  const profile = await syncUserProfileFromFirestore(result.user);
-  return profile;
+  console.log('[FirebaseAuthService] Initiating Google OAuth popup sign-in flow...');
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+    console.log('[FirebaseAuthService] Google OAuth popup successful for user:', {
+      uid: result.user.uid,
+      email: result.user.email,
+      displayName: result.user.displayName,
+      providerId: result.user.providerId,
+    });
+    const profile = await syncUserProfileFromFirestore(result.user);
+    return profile;
+  } catch (error: any) {
+    console.error('[FirebaseAuthService] Google OAuth Error Details:', {
+      code: error?.code,
+      message: error?.message,
+      customData: error?.customData,
+      currentOrigin: typeof window !== 'undefined' ? window.location.origin : 'N/A',
+      currentHost: typeof window !== 'undefined' ? window.location.hostname : 'N/A',
+    });
+    throw error;
+  }
 }
 
 /**

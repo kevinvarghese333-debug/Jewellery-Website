@@ -18,6 +18,7 @@ import { updateLiveBullionRatesInFirestore } from '../data/storeConfigService';
 import { getGoldRateForPurity } from '../data/products';
 import { AdminProductManager } from '../components/AdminProductManager';
 import { AdminAppointmentsManager } from '../components/AdminAppointmentsManager';
+import { AdminBrandingManager } from '../components/AdminBrandingManager';
 
 interface AdminCampaignViewProps {
   onNavigate: (view: ActiveView) => void;
@@ -100,7 +101,7 @@ export const AdminCampaignView: React.FC<AdminCampaignViewProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Admin Navigation Tabs
-  const [activeAdminTab, setActiveAdminTab] = useState<'leads' | 'rates_inventory' | 'onam_campaign' | 'dlt_sms'>('leads');
+  const [activeAdminTab, setActiveAdminTab] = useState<'branding' | 'leads' | 'rates_inventory' | 'onam_campaign' | 'dlt_sms'>('branding');
 
   const handleSaveDltConfig = (e: React.FormEvent) => {
     e.preventDefault();
@@ -361,6 +362,18 @@ export const AdminCampaignView: React.FC<AdminCampaignViewProps> = ({
         {/* Admin Navigation Tabs */}
         <div className="flex flex-wrap items-center gap-2.5 border-b border-[#4E4C4B]/60 pb-3">
           <button
+            onClick={() => setActiveAdminTab('branding')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all ${
+              activeAdminTab === 'branding'
+                ? 'bg-[#C7E24E] text-[#070A0D] shadow-md ring-2 ring-[#C7E24E]/40'
+                : 'bg-[#20221C] text-[#ECEAE2]/80 hover:text-white hover:bg-[#2a2d24]'
+            }`}
+          >
+            <span className="material-symbols-outlined text-base">palette</span>
+            <span>Store Media & Branding (Logo / Hero)</span>
+          </button>
+
+          <button
             onClick={() => setActiveAdminTab('leads')}
             className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all ${
               activeAdminTab === 'leads'
@@ -408,6 +421,13 @@ export const AdminCampaignView: React.FC<AdminCampaignViewProps> = ({
             <span>BSNL DLT SMS Gateway</span>
           </button>
         </div>
+
+        {/* TAB 0: Store Media & Branding (Logo / Hero) */}
+        {activeAdminTab === 'branding' && (
+          <div className="animate-fadeIn">
+            <AdminBrandingManager />
+          </div>
+        )}
 
         {/* TAB 1: Leads & Appointments (Google Sheets) */}
         {activeAdminTab === 'leads' && (

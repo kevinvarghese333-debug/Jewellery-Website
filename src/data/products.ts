@@ -558,8 +558,10 @@ export const PRODUCTS: Product[] = [
 ];
 
 export const ASSET_IMAGES = {
-  hero: '/hero.jpg',
-  heroFallback: 'https://images.unsplash.com/photo-1617038220319-276d3cfab638?auto=format&fit=crop&w=1920&q=85',
+  hero: '/hero-banner-composed.jpg',
+  heroTraditional: '/hero-traditional-cropped.jpg',
+  heroPortrait: '/ADH04463 JPEG Lq.jpg',
+  heroFallback: '/hero-traditional.jpg',
   bridalCategory: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAJKWUVghuy30UPwFO2WMmEd7YHWo11egA-wFUjGbtU9F2d-uiWW7qCaJI817iU9zyBbfD4nUBA4MTaEpY7kFSNrK_F5u0ERRZ9Rx5nDr2nAmae3VVMomxkFaGPEZ5FWFRmV7kCIPeTPHXkFn3N7TFFoVk_THGBYml7q2gmn0avvovzBN3_OPh7bS9lGKAWAxsSgGHPpvj-lVsxfxOQ7gOUBnBoRAMbrm04yD81Ee4SG5nQjlwzoQWsLg',
   necklacesCategory: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDCFnIW7MpYWKLhk2eQbummGd6OlVGAfq5xXrQ_6nJSqyZYcHSQ4alS8i7EMOcreo91KZBwIObg6SnQ4MNybu7FQkT8JyKMrnr_ngfRhx8xeN3rjV9L7ALj_TgQzq7yS3S2OZfS5pxLFmvloMWq1voVfVvcx_Y9io82hyYYiMkKiE7c7boDOoMkQ-Ku7CoDWZfKGNnBxPfUBie8VIfbuGwh8iXipuSUX4FQzD76lw3UsKTRl-rsQqBH-w',
   earringsCategory: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCthD5TK07WFpSSHFY23CSficQ31bznnFKWy1gYQ-vvXirGH_k1vLxiwIeUgFDwd7sDSlI509FulAo1Qbm1cSvjD6a33n8rCCTTkKxXDk8BvAnLrzrLaJ9OSOITqYg6mgDmkoe5i13EOsgdG8pfO2O_0GApawNgRNNYNoWa3VxIJj9_pNQ0sZJ7u25DKvk-mBIWhsGtdCzhh_8UdeXrOis1Rq5Oqoxvd_cJwBlk7DiWfzWjk3_HUgrEsw',

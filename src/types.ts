@@ -128,6 +128,7 @@ export interface UserProfile {
   isLoggedIn: boolean;
   loyaltyPoints: number;
   lastLoginAt: string;
+  createdAt?: string;
   savedWishlistCount?: number;
 }
 

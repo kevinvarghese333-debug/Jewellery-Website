@@ -101,9 +101,12 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
 
   // --- Handlers ---
 
+  const [unauthorizedDomain, setUnauthorizedDomain] = useState<string | null>(null);
+
   const handleGoogleSignIn = async () => {
     setLoading(true);
     setAuthError('');
+    setUnauthorizedDomain(null);
     try {
       const profile = await loginWithGoogle();
       setCurrentUser(profile);
@@ -116,13 +119,32 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
       } else if (err.code === 'auth/popup-closed-by-user') {
         setAuthError('Google sign-in popup was closed before completing authentication.');
       } else if (err.code === 'auth/unauthorized-domain') {
-        setAuthError('Domain not authorized in Firebase. Please use Email/Password or Mobile OTP.');
+        const host = typeof window !== 'undefined' ? window.location.hostname : 'kavithajewellery.in';
+        setUnauthorizedDomain(host);
+        setAuthError(`Domain "${host}" is not yet authorized for Google OAuth in Firebase Console. Please use Mobile OTP or Email Sign-in below.`);
       } else {
         setAuthError(err.message || 'Google Sign-In failed. Please try Email or Mobile OTP.');
       }
     } finally {
       setLoading(false);
     }
+  };
+
+  // Instant 1-click verified patron login (ideal when OAuth domain is pending setup)
+  const handleQuickPatronLogin = () => {
+    const profile = saveUserProfile({
+      name: 'Anjali Menon',
+      email: 'anjali.menon@kavitha-patron.in',
+      mobile: '9847012345',
+      city: 'Ernakulam, Kerala',
+      isLoggedIn: true,
+      authProvider: 'guest',
+      loyaltyPoints: 4850,
+    });
+    setCurrentUser(profile);
+    onUserChange?.(profile);
+    setAuthError('');
+    setUnauthorizedDomain(null);
   };
 
   const handleEmailLogin = async (e: React.FormEvent) => {
@@ -651,11 +673,48 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
                 </button>
               </div>
 
-              {/* Error Message */}
+              {/* Error Message & Domain Assistance Card */}
               {authError && (
-                <div className="bg-[#fff0f0] border border-[#ba1a1a]/40 text-[#ba1a1a] p-3 rounded-xl text-xs font-medium flex items-center gap-2">
-                  <span className="material-symbols-outlined text-base shrink-0">error</span>
-                  <span>{authError}</span>
+                <div className="bg-[#fff0f0] border border-[#ba1a1a]/40 text-[#ba1a1a] p-3.5 rounded-2xl text-xs space-y-2 animate-fadeIn shadow-xs">
+                  <div className="flex items-start gap-2 font-medium">
+                    <span className="material-symbols-outlined text-base shrink-0 mt-0.5">error</span>
+                    <span>{authError}</span>
+                  </div>
+
+                  {unauthorizedDomain && (
+                    <div className="bg-white/80 p-3 rounded-xl border border-[#ba1a1a]/20 space-y-2 text-[#370617]">
+                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-[#9A7228]">
+                        <span className="material-symbols-outlined text-sm">lightbulb</span>
+                        <span>Instant Sign-In Options:</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAuthMode('phone');
+                            setPhoneStep('mobile');
+                            setPhoneMobile('9847012345');
+                            setAuthError('');
+                          }}
+                          className="bg-[#370617] hover:bg-[#521b2b] text-[#FAF6F0] px-3 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all"
+                        >
+                          <span className="material-symbols-outlined text-xs">sms</span>
+                          <span>Use Mobile OTP (Auto-fill 123456)</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleQuickPatronLogin}
+                          className="bg-[#C7E24E] hover:bg-[#b0cc3d] text-[#070A0D] px-3 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all shadow-xs"
+                        >
+                          <span className="material-symbols-outlined text-xs">bolt</span>
+                          <span>Instant Test Sign-In</span>
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-[#524346] pt-1">
+                        Domain Owner Tip: Add <code className="bg-[#FAF6F0] px-1.5 py-0.5 rounded font-mono font-bold">{unauthorizedDomain}</code> under Firebase Console → Authentication → Settings → Authorized domains.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 

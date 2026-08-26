@@ -40,7 +40,13 @@ export const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 // Initialize Auth
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({ prompt: 'select_account' });
+googleProvider.addScope('email');
+googleProvider.addScope('profile');
+googleProvider.addScope('openid');
+googleProvider.setCustomParameters({ 
+  prompt: 'select_account',
+  display: 'popup'
+});
 
 // Initialize Firestore with custom databaseId if configured
 export const db = firebaseConfigJson.firestoreDatabaseId 

@@ -2,6 +2,7 @@ import React from 'react';
 import { PRODUCTS, ASSET_IMAGES, getLiveProductPrice } from '../data/products';
 import { Product, ActiveView } from '../types';
 import { DiamondRule } from '../components/DiamondRule';
+import { useStoreBranding } from '../hooks/useStoreBranding';
 
 interface HomeViewProps {
   onNavigate: (view: ActiveView) => void;
@@ -22,52 +23,82 @@ export const HomeView: React.FC<HomeViewProps> = ({
   wishlistIds = [],
   onAddToCart,
 }) => {
+  const branding = useStoreBranding();
   const bestsellers = PRODUCTS.filter(p => p.isBestseller);
   const newArrivals = PRODUCTS.filter(p => p.isNewArrival || !p.isBestseller).slice(0, 4);
+
+  // Determine blur CSS class based on branding preference
+  const getBlurClass = () => {
+    switch (branding?.heroBlurLevel) {
+      case 'none':
+        return 'filter-none scale-100';
+      case 'subtle':
+        return 'blur-[3px] scale-102';
+      case 'strong':
+        return 'blur-[12px] scale-110';
+      case 'luxury':
+        return 'blur-[8px] scale-105 saturate-125';
+      case 'medium':
+      default:
+        // 8px subtle blur default
+        return 'blur-[8px] scale-105';
+    }
+  };
+
+  const heroImageSrc = branding?.heroImageUrl || ASSET_IMAGES.hero;
+  const heroFallbackSrc = branding?.heroFallbackUrl || ASSET_IMAGES.heroFallback;
 
   return (
     <div className="space-y-16 animate-fadeIn pb-12">
       {/* 1. Hero Section */}
-      <section className="relative min-h-[540px] md:min-h-[620px] rounded-2xl overflow-hidden shadow-2xl flex items-center bg-[#1C1410]">
-        <img
-          src={ASSET_IMAGES.hero}
-          alt="Kavitha Jewellery Heritage Model"
-          className="absolute inset-0 w-full h-full object-cover object-[center_20%] md:object-[right_15%] opacity-100 transition-transform duration-1000 hover:scale-105"
-          referrerPolicy="no-referrer"
-          onError={(e) => {
-            const target = e.currentTarget;
-            if (target.src !== ASSET_IMAGES.heroFallback) {
-              target.src = ASSET_IMAGES.heroFallback;
-            }
-          }}
-        />
-        {/* Crisp Gradient Overlay for high-contrast typography without obscuring the jewellery model */}
-        <div className="absolute inset-0 bg-gradient-to-r from-[#1C1410] via-[#1C1410]/75 md:via-[#1C1410]/35 to-transparent pointer-events-none" />
+      <section className="relative min-h-[560px] md:min-h-[640px] rounded-2xl overflow-hidden shadow-2xl flex items-center bg-[#18040A]">
+        {/* Heritage Kerala Bridal Jewellery Campaign Photography with Soft Luxury Blur */}
+        <div className="absolute inset-0 overflow-hidden">
+          <img
+            src={heroImageSrc}
+            alt="Kavitha Jewellery Kerala Heritage Gold Bridal Campaign"
+            className={`w-full h-full object-cover object-center md:object-right lg:object-[80%_center] opacity-95 transition-all duration-700 ${getBlurClass()}`}
+            referrerPolicy="no-referrer"
+            onError={(e) => {
+              const target = e.currentTarget;
+              if (target.src !== heroFallbackSrc) {
+                target.src = heroFallbackSrc;
+              }
+            }}
+          />
+        </div>
 
-        <div className="relative z-10 max-w-2xl px-8 md:px-16 text-white space-y-6">
-          <div className="inline-flex items-center gap-2 bg-[#B88A44]/20 backdrop-blur-md border border-[#B88A44]/40 px-3.5 py-1 rounded-full text-[#D4AF6A] text-xs font-brand uppercase tracking-[0.2em] font-semibold">
-            <span>◆</span>
-            <span>EST. 1992 • KERALA</span>
+        {/* Modern CSS Backdrop Blur Effect (backdrop-filter: blur(8px)) for pristine text legibility */}
+        <div className="absolute inset-0 backdrop-blur-[8px] bg-black/15 pointer-events-none" />
+
+        {/* Luminous Warm Vignette & Gradient for pristine typography readability without obscuring bridal jewelry */}
+        <div className="absolute inset-0 bg-gradient-to-r from-[#18040A] via-[#18040A]/85 md:via-[#18040A]/50 lg:via-[#18040A]/20 to-transparent pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#18040A]/85 via-transparent to-black/30 pointer-events-none md:hidden" />
+
+        <div className="relative z-10 max-w-2xl px-6 sm:px-10 md:px-16 text-white space-y-6">
+          <div className="inline-flex items-center gap-2 bg-[#B88A44]/25 backdrop-blur-md border border-[#D4AF6A]/50 px-3.5 py-1.5 rounded-full text-[#F5D77F] text-xs font-brand uppercase tracking-[0.2em] font-bold shadow-sm">
+            <span className="text-[#F5D77F]">◆</span>
+            <span>EST. 1992 • CHERAI, KERALA</span>
           </div>
 
-          <h1 className="font-serif-display text-4xl md:text-6xl lg:text-7xl font-bold leading-[1.1] text-[#FAF6F0] tracking-tight">
+          <h1 className="font-serif-display text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold leading-[1.08] text-[#FAF6F0] tracking-tight">
             Crafted for Today. <br />
-            <span className="italic font-normal text-[#D4AF6A]">Cherished for Generations</span>
+            <span className="italic font-normal text-[#F5D77F]">Cherished for Generations</span>
           </h1>
 
           <div className="space-y-2">
             <p className="font-brand text-sm md:text-base text-[#FAF6F0] leading-relaxed max-w-xl font-medium">
-              South India's premier destination for Timeless gold jewellery, crafted with uncompromising purity and care for every important moment.
+              Kerala's trusted destination for pure 22K 916 BIS Hallmarked gold, heirloom bridal Haarams, antique temple jewellery, and exquisite solitaire designs.
             </p>
-            <p className="font-brand text-xs md:text-sm text-[#D9CFC4] leading-relaxed max-w-lg font-normal">
-              Since 1992, crafted with certified purity, timeless design, and a commitment to doing things right.
+            <p className="font-brand text-xs md:text-sm text-[#E2D8CE] leading-relaxed max-w-lg font-normal">
+              Direct live bullion market rates with 100% transparent pricing, zero hidden deductions, and BIS HUID certification.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-4 pt-2">
             <button
               onClick={() => onNavigate('catalog')}
-              className="bg-[#B88A44] hover:bg-[#7e5714] text-white px-7 py-3.5 rounded-md font-sans text-xs uppercase tracking-[0.18em] font-bold shadow-lg transition-all duration-200 transform hover:-translate-y-0.5 flex items-center gap-2"
+              className="bg-gradient-to-r from-[#B88A44] to-[#966C2E] hover:from-[#C99832] hover:to-[#7E5714] text-white px-7 py-3.5 rounded-lg font-sans text-xs uppercase tracking-[0.18em] font-bold shadow-lg transition-all duration-200 transform hover:-translate-y-0.5 flex items-center gap-2 border border-[#F5D77F]/30"
             >
               <span>Explore Collections</span>
               <span className="material-symbols-outlined text-sm">arrow_forward</span>
@@ -75,36 +106,36 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
             <button
               onClick={() => onOpenAppointmentModal()}
-              className="bg-[#ffffff]/10 hover:bg-[#ffffff]/20 text-[#FAF6F0] border border-[#d7c1c4]/40 backdrop-blur-md px-6 py-3.5 rounded-md font-sans text-xs uppercase tracking-[0.18em] font-semibold transition-all duration-200"
+              className="bg-[#ffffff]/15 hover:bg-[#ffffff]/25 text-[#FAF6F0] border border-[#F5D77F]/40 backdrop-blur-md px-6 py-3.5 rounded-lg font-sans text-xs uppercase tracking-[0.18em] font-semibold transition-all duration-200 shadow-md"
             >
               Book Video Call
             </button>
           </div>
 
           {/* Quick Stats Pill */}
-          <div className="pt-6 border-t border-[#d7c1c4]/20 grid grid-cols-3 gap-3 sm:gap-4 text-left max-w-lg">
+          <div className="pt-6 border-t border-[#F5D77F]/25 grid grid-cols-3 gap-3 sm:gap-4 text-left max-w-lg">
             <div>
-              <span className="font-data font-bold text-sm sm:text-base md:text-lg text-[#D4AF6A] block whitespace-nowrap">
-                22K/18K/14K
+              <span className="font-data font-bold text-sm sm:text-base md:text-lg text-[#F5D77F] block whitespace-nowrap">
+                22K / 18K / 14K
               </span>
-              <span className="block text-[10px] text-[#A89C92] uppercase tracking-wider font-brand">
+              <span className="block text-[10px] text-[#D9CFC4] uppercase tracking-wider font-brand">
                 916 BIS Hallmark
               </span>
             </div>
             <div>
-              <span className="font-data font-bold text-sm sm:text-base md:text-lg text-[#D4AF6A] block whitespace-nowrap">
+              <span className="font-data font-bold text-sm sm:text-base md:text-lg text-[#F5D77F] block whitespace-nowrap">
                 ₹{goldRate.toLocaleString()}<span className="text-xs font-normal text-[#F0EBE4]/80">/g</span>
               </span>
-              <span className="block text-[10px] text-[#A89C92] uppercase tracking-wider font-brand">
-                22K Live Gold Rate
+              <span className="block text-[10px] text-[#D9CFC4] uppercase tracking-wider font-brand">
+                22K Live Bullion Rate
               </span>
             </div>
             <div>
-              <span className="font-data font-bold text-sm sm:text-base md:text-lg text-[#D4AF6A] block whitespace-nowrap">
+              <span className="font-data font-bold text-sm sm:text-base md:text-lg text-[#F5D77F] block whitespace-nowrap">
                 ₹{(goldRate * 8).toLocaleString()}
               </span>
-              <span className="block text-[10px] text-[#A89C92] uppercase tracking-wider font-brand">
-                22K (8g / 1 Sovereign)
+              <span className="block text-[10px] text-[#D9CFC4] uppercase tracking-wider font-brand">
+                1 Sovereign (8 Grams)
               </span>
             </div>
           </div>
