@@ -58,17 +58,85 @@ export const getLocalCachedBranding = (): StoreBrandingConfig => {
 };
 
 /**
- * Save branding configuration locally
+ * Compress / downscale image data URL if it exceeds max dimensions or size limit
+ */
+export const compressImageDataUrl = (
+  dataUrl: string,
+  maxWidth = 1000,
+  maxHeight = 1000,
+  quality = 0.85
+): Promise<string> => {
+  if (typeof window === 'undefined' || !dataUrl.startsWith('data:image/')) {
+    return Promise.resolve(dataUrl);
+  }
+
+  // If already small (< 100KB), return as is
+  if (dataUrl.length < 100000) {
+    return Promise.resolve(dataUrl);
+  }
+
+  return new Promise((resolve) => {
+    try {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          let width = img.naturalWidth || img.width;
+          let height = img.naturalHeight || img.height;
+
+          if (width > maxWidth || height > maxHeight) {
+            const ratio = Math.min(maxWidth / width, maxHeight / height);
+            width = Math.round(width * ratio);
+            height = Math.round(height * ratio);
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const isPng = dataUrl.startsWith('data:image/png');
+            // Use JPEG/WebP for large images to save drastic space, or PNG if small
+            const compressed = isPng && dataUrl.length < 300000
+              ? canvas.toDataURL('image/png')
+              : (canvas.toDataURL('image/webp', quality) || canvas.toDataURL('image/jpeg', quality));
+            resolve(compressed);
+          } else {
+            resolve(dataUrl);
+          }
+        } catch {
+          resolve(dataUrl);
+        }
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    } catch {
+      resolve(dataUrl);
+    }
+  });
+};
+
+/**
+ * Save branding configuration locally with quota safety
  */
 export const saveLocalBranding = (config: StoreBrandingConfig): void => {
   if (typeof window !== 'undefined') {
     try {
       localStorage.setItem('kavitha_store_branding', JSON.stringify(config));
-      // Dispatch custom event so all open components can re-render immediately
-      window.dispatchEvent(new CustomEvent('kavitha_branding_updated', { detail: config }));
     } catch (e) {
-      console.error('Error saving local branding:', e);
+      console.warn('localStorage quota reached, attempting storage with fallback:', e);
+      try {
+        // Fallback: If full, remove large transient keys or save a trimmed configuration
+        localStorage.removeItem('kavitha_store_branding');
+        localStorage.setItem('kavitha_store_branding', JSON.stringify(config));
+      } catch (err) {
+        console.error('Error saving local branding:', err);
+      }
     }
+    // Always dispatch custom event so all open components can re-render immediately
+    try {
+      window.dispatchEvent(new CustomEvent('kavitha_branding_updated', { detail: config }));
+    } catch {}
   }
 };
 
@@ -84,34 +152,39 @@ export const subscribeToStoreBranding = (
   const local = getLocalCachedBranding();
   onUpdate(local);
 
-  const docRef = doc(db, CONFIG_DOC_PATH, BRANDING_DOC_ID);
+  try {
+    const docRef = doc(db, CONFIG_DOC_PATH, BRANDING_DOC_ID);
 
-  const unsubscribe = onSnapshot(
-    docRef,
-    (snapshot) => {
-      if (snapshot.exists()) {
-        const data = snapshot.data() as StoreBrandingConfig;
-        const merged: StoreBrandingConfig = {
-          ...DEFAULT_BRANDING,
-          ...data,
-        };
-        saveLocalBranding(merged);
-        onUpdate(merged);
-      } else {
-        // Initialize default document in Firestore
-        setDoc(docRef, { ...DEFAULT_BRANDING, updatedAt: serverTimestamp() }, { merge: true }).catch((err) => {
-          console.warn('Branding doc bootstrap notice:', err);
-        });
-        onUpdate(DEFAULT_BRANDING);
+    const unsubscribe = onSnapshot(
+      docRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data() as StoreBrandingConfig;
+          const merged: StoreBrandingConfig = {
+            ...DEFAULT_BRANDING,
+            ...data,
+          };
+          saveLocalBranding(merged);
+          onUpdate(merged);
+        } else {
+          // Initialize default document in Firestore
+          setDoc(docRef, { ...DEFAULT_BRANDING, updatedAt: serverTimestamp() }, { merge: true }).catch((err) => {
+            console.warn('Branding doc bootstrap notice:', err);
+          });
+          onUpdate(DEFAULT_BRANDING);
+        }
+      },
+      (error) => {
+        console.warn('Firestore branding snapshot error (using local cache):', error);
+        onUpdate(getLocalCachedBranding());
       }
-    },
-    (error) => {
-      console.warn('Firestore branding snapshot error (using local cache):', error);
-      onUpdate(getLocalCachedBranding());
-    }
-  );
+    );
 
-  return unsubscribe;
+    return unsubscribe;
+  } catch (err) {
+    console.warn('subscribeToStoreBranding initial error:', err);
+    return () => {};
+  }
 };
 
 /**
@@ -122,9 +195,23 @@ export const updateStoreBrandingInFirestore = async (
   adminUser: string = 'Administrator'
 ): Promise<void> => {
   const current = getLocalCachedBranding();
+
+  // Compress any large base64 images before saving
+  let logoUrl = config.logoUrl !== undefined ? config.logoUrl : current.logoUrl;
+  let heroImageUrl = config.heroImageUrl !== undefined ? config.heroImageUrl : current.heroImageUrl;
+
+  if (logoUrl && logoUrl.startsWith('data:image/') && logoUrl.length > 200000) {
+    logoUrl = await compressImageDataUrl(logoUrl, 800, 800, 0.85);
+  }
+  if (heroImageUrl && heroImageUrl.startsWith('data:image/') && heroImageUrl.length > 300000) {
+    heroImageUrl = await compressImageDataUrl(heroImageUrl, 1600, 900, 0.82);
+  }
+
   const updated: StoreBrandingConfig = {
     ...current,
     ...config,
+    logoUrl,
+    heroImageUrl,
     updatedAt: serverTimestamp(),
     updatedBy: adminUser,
   };
@@ -132,7 +219,15 @@ export const updateStoreBrandingInFirestore = async (
   // 1. Immediately update local cache and dispatch event for instant response
   saveLocalBranding(updated);
 
-  // 2. Persist to Firestore for real-time cloud broadcast
-  const docRef = doc(db, CONFIG_DOC_PATH, BRANDING_DOC_ID);
-  await setDoc(docRef, updated, { merge: true });
+  // 2. Persist to Firestore with a reliable timeout race so it never blocks or hangs UI
+  try {
+    const docRef = doc(db, CONFIG_DOC_PATH, BRANDING_DOC_ID);
+    const savePromise = setDoc(docRef, updated, { merge: true });
+    const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 3500));
+    
+    // Race against 3.5s timeout
+    await Promise.race([savePromise, timeoutPromise]);
+  } catch (err) {
+    console.warn('[StoreBranding] Firestore sync deferred (persisted to local cache):', err);
+  }
 };

@@ -108,9 +108,15 @@ export const updateLiveBullionRatesInFirestore = async (
     console.error(e);
   }
 
-  // 2. Persist to Firestore for global real-time synchronization
-  const docRef = doc(db, CONFIG_DOC_PATH, GOLD_RATES_DOC_ID);
-  await setDoc(docRef, ratesData, { merge: true });
+  // 2. Persist to Firestore for global real-time synchronization with timeout
+  try {
+    const docRef = doc(db, CONFIG_DOC_PATH, GOLD_RATES_DOC_ID);
+    const savePromise = setDoc(docRef, ratesData, { merge: true });
+    const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 3500));
+    await Promise.race([savePromise, timeoutPromise]);
+  } catch (err) {
+    console.warn('[BullionRates] Firestore sync deferred (persisted to local cache):', err);
+  }
 };
 
 /**

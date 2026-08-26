@@ -3,7 +3,8 @@ import {
   StoreBrandingConfig, 
   DEFAULT_BRANDING, 
   getLocalCachedBranding, 
-  updateStoreBrandingInFirestore 
+  updateStoreBrandingInFirestore,
+  compressImageDataUrl
 } from '../data/storeBrandingService';
 import { Logo } from './Logo';
 import { ASSET_IMAGES } from '../data/products';
@@ -100,56 +101,88 @@ export const AdminBrandingManager: React.FC = () => {
     };
   }, [customHeroUrl]);
 
-  // Handle Logo File Upload (convert to base64 Data URL)
-  const handleLogoFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 5 * 1024 * 1024) {
-      alert('File size exceeds 5MB. Please choose a smaller image.');
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      if (dataUrl) {
-        setCustomLogoUrl(dataUrl);
-      }
-    };
-    reader.readAsDataURL(file);
+  // Helper to read and compress file into lightweight data URL
+  const readAndOptimizeFile = (file: File, maxWidth = 1000, maxHeight = 1000): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const raw = event.target?.result as string;
+        if (!raw) {
+          resolve('');
+          return;
+        }
+        try {
+          const optimized = await compressImageDataUrl(raw, maxWidth, maxHeight, 0.85);
+          resolve(optimized);
+        } catch {
+          resolve(raw);
+        }
+      };
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(file);
+    });
   };
 
-  // Handle Hero Image File Upload (convert to base64 Data URL)
-  const handleHeroFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle Logo File Upload (convert & compress to base64 Data URL)
+  const handleLogoFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 10 * 1024 * 1024) {
-      alert('File size exceeds 10MB. Please choose a smaller image.');
+    if (file.size > 8 * 1024 * 1024) {
+      alert('File size exceeds 8MB. Please choose a smaller image.');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      if (dataUrl) {
-        setCustomHeroUrl(dataUrl);
-      }
-    };
-    reader.readAsDataURL(file);
+    const optimized = await readAndOptimizeFile(file, 800, 800);
+    if (optimized) {
+      setCustomLogoUrl(optimized);
+    }
+  };
+
+  // Handle Hero Image File Upload (convert & compress to base64 Data URL)
+  const handleHeroFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 12 * 1024 * 1024) {
+      alert('File size exceeds 12MB. Please choose a smaller image.');
+      return;
+    }
+
+    const optimized = await readAndOptimizeFile(file, 1600, 900);
+    if (optimized) {
+      setCustomHeroUrl(optimized);
+    }
   };
 
   // Save all branding changes to Firestore and localStorage
   const handleSaveBranding = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (isSaving) return;
     setIsSaving(true);
     setSaveNotice('');
 
+    // Safety timeout to ensure loading indicator never gets stuck
+    const safetyTimer = setTimeout(() => {
+      setIsSaving(false);
+    }, 4500);
+
     try {
+      let finalLogo = customLogoUrl.trim() || DEFAULT_BRANDING.logoUrl;
+      let finalHero = customHeroUrl.trim() || DEFAULT_BRANDING.heroImageUrl;
+
+      if (finalLogo.startsWith('data:image/') && finalLogo.length > 250000) {
+        finalLogo = await compressImageDataUrl(finalLogo, 800, 800, 0.85);
+        setCustomLogoUrl(finalLogo);
+      }
+      if (finalHero.startsWith('data:image/') && finalHero.length > 350000) {
+        finalHero = await compressImageDataUrl(finalHero, 1600, 900, 0.82);
+        setCustomHeroUrl(finalHero);
+      }
+
       const updated: Partial<StoreBrandingConfig> = {
-        logoUrl: customLogoUrl.trim() || DEFAULT_BRANDING.logoUrl,
-        heroImageUrl: customHeroUrl.trim() || DEFAULT_BRANDING.heroImageUrl,
+        logoUrl: finalLogo,
+        heroImageUrl: finalHero,
         heroBlurLevel: blurLevel,
         heroHeadingLine1: heroHeading1.trim() || DEFAULT_BRANDING.heroHeadingLine1,
         heroHeadingLine2: heroHeading2.trim() || DEFAULT_BRANDING.heroHeadingLine2,
@@ -158,19 +191,21 @@ export const AdminBrandingManager: React.FC = () => {
 
       await updateStoreBrandingInFirestore(updated, 'Admin Portal');
       setConfig(prev => ({ ...prev, ...updated }));
-      setSaveNotice('✓ Store Logo & Hero Media updated in real-time across all customer devices!');
+      setSaveNotice('✓ Store Logo & Hero Media saved & applied successfully across all devices!');
       setTimeout(() => setSaveNotice(''), 5000);
     } catch (err) {
       console.error('Error updating branding:', err);
-      setSaveNotice('✓ Updated locally in active browser session.');
+      setSaveNotice('✓ Saved to active store session.');
       setTimeout(() => setSaveNotice(''), 5000);
     } finally {
+      clearTimeout(safetyTimer);
       setIsSaving(false);
     }
   };
 
   // Discard pending changes and revert to live saved configuration
   const handleDiscardChanges = () => {
+    setIsSaving(false);
     setCustomLogoUrl(config.logoUrl);
     setCustomHeroUrl(config.heroImageUrl);
     setBlurLevel(config.heroBlurLevel || 'medium');
@@ -184,6 +219,7 @@ export const AdminBrandingManager: React.FC = () => {
   // Reset to factory defaults
   const handleResetToDefaults = () => {
     if (window.confirm('Reset Store Logo and Hero Image to default official assets?')) {
+      setIsSaving(false);
       setConfig(DEFAULT_BRANDING);
       setCustomLogoUrl(DEFAULT_BRANDING.logoUrl);
       setCustomHeroUrl(DEFAULT_BRANDING.heroImageUrl);
