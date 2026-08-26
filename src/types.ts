@@ -78,6 +78,7 @@ export interface OnamCoupon {
   mobile: string;
   userName?: string;
   userEmail?: string;
+  dateOfBirth?: string; // e.g. YYYY-MM-DD or formatted DD Mon YYYY
   discountAmount: number; // 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000
   status: 'UNUSED' | 'REDEEMED' | 'EXPIRED';
   issuedAt: string;
@@ -86,6 +87,7 @@ export interface OnamCoupon {
   source: string; // e.g., 'instagram', 'qr', 'newspaper', 'whatsapp', 'store'
   redeemedAt?: string;
   redeemedStore?: string;
+  sheetsSynced?: boolean;
 }
 
 export interface CampaignMetrics {

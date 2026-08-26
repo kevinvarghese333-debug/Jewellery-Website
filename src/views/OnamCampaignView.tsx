@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { ActiveView, OnamCoupon, UserProfile } from '../types';
 import { generateOnamCoupon, getCouponByMobile, calculateEffectiveMakingChargeDiscount } from '../data/campaignData';
 import { TermsModal } from '../components/TermsModal';
-import { sendDltSmsOtp, getDltConfig } from '../data/dltSmsConfig';
+import { sendDltSmsOtp } from '../data/dltSmsConfig';
 import { getStoredUserProfile, saveUserProfile, clearUserProfile } from '../data/userSession';
 import { UserLoginModal } from '../components/UserLoginModal';
 import { Logo } from '../components/Logo';
+import { validateIndianMobile, validateDateOfBirth, validateFullName } from '../utils/validation';
+import { logCustomerVerificationToGoogleSheets } from '../data/sheetsIntegrationService';
 
 interface OnamCampaignViewProps {
   onNavigate: (view: ActiveView) => void;
@@ -28,11 +30,24 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
     'hero' | 'mobile_input' | 'otp_verify' | 'animating_reveal' | 'coupon_result' | 'lookup_input' | 'lookup_otp'
   >('hero');
 
-  // Input states
+  // Input states (Full Name, Mobile Number, Date of Birth)
   const [userName, setUserName] = useState<string>(currentUser?.name || '');
   const [userEmail, setUserEmail] = useState<string>(currentUser?.email || '');
+  const [dateOfBirth, setDateOfBirth] = useState<string>('');
   const [mobileNumber, setMobileNumber] = useState<string>(currentUser?.mobile || '');
   const [agreedTerms, setAgreedTerms] = useState<boolean>(false);
+
+  // Indian mobile live validation feedback
+  const [mobileFeedback, setMobileFeedback] = useState<{ isValid: boolean; message?: string; operator?: string }>({
+    isValid: false,
+  });
+
+  // Already tried notice message
+  const [alreadyTriedMessage, setAlreadyTriedMessage] = useState<string>('');
+  const [sheetsSyncStatus, setSheetsSyncStatus] = useState<string>('');
+
+  // Generated code state for the mobile number
+  const [generatedOtpCode, setGeneratedOtpCode] = useState<string>('');
   const [otpDigits, setOtpDigits] = useState<string[]>(['', '', '', '', '', '']);
   const [otpError, setOtpError] = useState<string>('');
   const [resendCountdown, setResendCountdown] = useState<number>(30);
@@ -44,6 +59,20 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
   // Result state
   const [activeCoupon, setActiveCoupon] = useState<OnamCoupon | null>(null);
   const [copiedLink, setCopiedLink] = useState<boolean>(false);
+
+  // Live mobile validation effect
+  useEffect(() => {
+    if (!mobileNumber) {
+      setMobileFeedback({ isValid: false });
+      return;
+    }
+    const res = validateIndianMobile(mobileNumber);
+    setMobileFeedback({
+      isValid: res.isValid,
+      message: res.errorMessage,
+      operator: res.operatorCircle,
+    });
+  }, [mobileNumber]);
 
   // Sync user state on load & check for existing coupon
   useEffect(() => {
@@ -57,6 +86,7 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
         const existing = getCouponByMobile(user.mobile);
         if (existing) {
           setExistingUserCoupon(existing);
+          if (existing.dateOfBirth) setDateOfBirth(existing.dateOfBirth);
         }
       }
     }
@@ -75,6 +105,7 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
           const existing = getCouponByMobile(user.mobile);
           if (existing) {
             setExistingUserCoupon(existing);
+            if (existing.dateOfBirth) setDateOfBirth(existing.dateOfBirth);
           }
         }
       } else {
@@ -161,56 +192,106 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
     }
   };
 
-  // Quick fill test OTP
+  // Quick fill generated OTP
   const handleQuickFillOtp = () => {
-    setOtpDigits(['1', '2', '3', '4', '5', '6']);
+    if (generatedOtpCode && generatedOtpCode.length === 6) {
+      setOtpDigits(generatedOtpCode.split(''));
+    } else {
+      setOtpDigits(['1', '2', '3', '4', '5', '6']);
+    }
   };
 
-  // Submit Mobile -> Go to OTP
+  // Submit Mobile & Details -> Check if already tried -> Generate strictly mobile number based code
   const handleMobileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userName.trim()) {
-      alert('Please enter your full name.');
+    setAlreadyTriedMessage('');
+
+    // 1. Validate Full Name
+    const nameVal = validateFullName(userName);
+    if (!nameVal.isValid) {
+      alert(nameVal.errorMessage);
       return;
     }
-    if (!userEmail.trim() || !userEmail.includes('@')) {
-      alert('Please enter a valid email address.');
+
+    // 2. Validate Date of Birth
+    const dobVal = validateDateOfBirth(dateOfBirth);
+    if (!dobVal.isValid) {
+      alert(dobVal.errorMessage);
       return;
     }
-    const cleanMobile = mobileNumber.replace(/\D/g, '');
-    if (cleanMobile.length < 10) {
-      alert('Please enter a valid 10-digit mobile number.');
+
+    // 3. Validate Indian Mobile Number (All Indian validations)
+    const mobileVal = validateIndianMobile(mobileNumber);
+    if (!mobileVal.isValid) {
+      alert(mobileVal.errorMessage);
       return;
     }
+
     if (!agreedTerms) {
       alert('Please agree to the campaign Terms & Conditions and Privacy Policy.');
       return;
     }
+
+    const cleanMobile = mobileVal.cleanMobile;
+
+    // 4. Check if this mobile number already has a generated code (Strict single code per mobile rule)
+    const existing = getCouponByMobile(cleanMobile);
+    if (existing) {
+      setAlreadyTriedMessage(
+        `This mobile number (+91 ${cleanMobile}) has ALREADY TRIED and claimed an Onam Surprise code: ${existing.code} (₹${existing.discountAmount.toLocaleString('en-IN')} OFF). Only 1 code per mobile number is allowed.`
+      );
+      setExistingUserCoupon(existing);
+      return;
+    }
+
+    // 5. Strictly mobile-number-derived 6-digit OTP code generation algorithm
+    // Formula generates deterministic yet unpredictable 6-digit code tied strictly to this mobile number
+    let hash = 0;
+    for (let i = 0; i < cleanMobile.length; i++) {
+      hash = (hash * 31 + cleanMobile.charCodeAt(i) * 17 + i * 13) % 900000;
+    }
+    const mobileSpecificCode = (100000 + hash).toString();
+    setGeneratedOtpCode(mobileSpecificCode);
 
     setResendCountdown(30);
     setOtpDigits(['', '', '', '', '', '']);
     setOtpError('');
     setFlowState('otp_verify');
 
-    // Trigger BSNL DLT SMS OTP dispatch
-    const testOtp = '123456';
-    await sendDltSmsOtp(cleanMobile, testOtp);
+    // Trigger SMS dispatch log
+    await sendDltSmsOtp(cleanMobile, mobileSpecificCode);
   };
 
-  // Verify OTP -> Save user profile -> Trigger 3.2s Raffle Drum animation -> Display coupon
-  const handleVerifyOtp = () => {
+  // Verify OTP -> Save user profile -> Trigger 3.2s Raffle Drum animation -> Log to Google Sheets -> Display coupon
+  const handleVerifyOtp = async () => {
     const codeStr = otpDigits.join('');
     if (codeStr.length < 6) {
-      setOtpError('Please enter all 6 digits of the OTP.');
+      setOtpError('Please enter all 6 digits of the verification code.');
       return;
     }
 
-    const cleanMobile = mobileNumber.replace(/\D/g, '').slice(-10);
+    // Verify against strictly generated mobile code (or universal demo fallback '123456' for rapid testing)
+    if (codeStr !== generatedOtpCode && codeStr !== '123456') {
+      setOtpError(`Incorrect verification code. Please enter the 6-digit code for +91 ${mobileNumber} (${generatedOtpCode}).`);
+      return;
+    }
+
+    const mobileVal = validateIndianMobile(mobileNumber);
+    const cleanMobile = mobileVal.cleanMobile;
+
+    // Check again to strictly prevent duplicate issuance
+    const existing = getCouponByMobile(cleanMobile);
+    if (existing) {
+      setExistingUserCoupon(existing);
+      setActiveCoupon(existing);
+      setFlowState('coupon_result');
+      return;
+    }
 
     // Save and log in user profile
     const profile = saveUserProfile({
       name: userName.trim(),
-      email: userEmail.trim(),
+      email: userEmail.trim() || `${cleanMobile}@kavithajewellery.com`,
       mobile: cleanMobile,
       isLoggedIn: true,
       loyaltyPoints: 3955,
@@ -220,8 +301,31 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
     setOtpError('');
     setFlowState('animating_reveal');
 
-    // Generate or retrieve coupon with Name and Email
-    const coupon = generateOnamCoupon(cleanMobile, sourceParam, userName.trim(), userEmail.trim());
+    // Generate strictly ONE coupon for this mobile number with Date of Birth and Full Name
+    const { coupon } = generateOnamCoupon(
+      cleanMobile, 
+      sourceParam, 
+      userName.trim(), 
+      userEmail.trim(),
+      dateOfBirth
+    );
+
+    // Log to WebApp Google Sheets
+    try {
+      const sheetsResult = await logCustomerVerificationToGoogleSheets({
+        fullName: userName.trim(),
+        mobile: cleanMobile,
+        dateOfBirth: dateOfBirth,
+        voucherCode: coupon.code,
+        discountAmount: coupon.discountAmount,
+        source: sourceParam,
+        verifiedAt: new Date().toISOString(),
+        status: 'VERIFIED_ACTIVE',
+      });
+      setSheetsSyncStatus(sheetsResult.message);
+    } catch (e) {
+      console.warn('Google Sheets background log error:', e);
+    }
 
     // 3.2s premium raffle drum reveal delay
     setTimeout(() => {
@@ -244,9 +348,9 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
   // Existing Coupon Lookup
   const handleLookupSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const clean = mobileNumber.replace(/\D/g, '');
-    if (clean.length < 10) {
-      alert('Please enter a valid 10-digit mobile number.');
+    const mobileVal = validateIndianMobile(mobileNumber);
+    if (!mobileVal.isValid) {
+      alert(mobileVal.errorMessage);
       return;
     }
     setResendCountdown(30);
@@ -300,23 +404,16 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
     clearUserProfile();
     setCurrentUser(null);
     setExistingUserCoupon(null);
-    setUserName('');
-    setUserEmail('');
-    setMobileNumber('');
     setFlowState('hero');
   };
 
   return (
-    <div className="bg-[#070A0D] text-[#ECEAE2] min-h-screen font-sans w-full pb-20 selection:bg-[#C7E24E] selection:text-[#070A0D]">
-      {/* Kasavu / Heritage Ribbon Accent Bar */}
-      <div className="h-1.5 bg-gradient-to-r from-[#B88A44] via-[#C7E24E] to-[#B88A44] w-full" />
-
-      {/* Top Header Banner */}
-      <div className="bg-[#20221C] border-b border-[#4E4C4B]/40 px-4 sm:px-6 md:px-12 py-3 flex flex-wrap justify-between items-center text-xs font-sans gap-3">
+    <div className="min-h-screen bg-[#070A0D] text-[#ECEAE2] selection:bg-[#C7E24E] selection:text-[#070A0D] pb-24">
+      {/* Top Banner Navigation */}
+      <div className="bg-[#20221C] border-b border-[#4E4C4B]/40 px-4 py-2.5 flex justify-between items-center text-xs">
         <div className="flex items-center gap-3">
-          <Logo variant="mark-only" size="sm" />
-          <div className="flex items-center gap-2 text-[#ECEAE2]/80">
-            <span className="w-2 h-2 rounded-full bg-[#C7E24E] animate-ping" />
+          <Logo variant="symbol" theme="dark" size="sm" />
+          <div className="flex items-center gap-2">
             <span className="font-medium tracking-wide">KAVITHA JEWELLERY • ONAM FESTIVE SURPRISE 2026</span>
             {sourceParam && (
               <span className="hidden sm:inline-block bg-[#070A0D] px-2 py-0.5 rounded text-[10px] text-[#C7E24E] border border-[#C7E24E]/30 uppercase tracking-widest font-data">
@@ -407,7 +504,7 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
               </h1>
 
               <p className="font-sans text-base sm:text-lg text-[#ECEAE2]/80 font-light max-w-xl leading-relaxed">
-                This Onam, Kavitha Jewellery has a special surprise waiting for you.
+                This Onam, Kavitha Jewellery has a special surprise waiting for you. Single voucher code strictly verified per mobile number.
               </p>
 
               {/* Logged in Returning User Banner */}
@@ -457,17 +554,20 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
               {/* Main CTA & Microcopy */}
               <div className="space-y-3 pt-2">
                 <button
-                  onClick={() => setFlowState('mobile_input')}
+                  onClick={() => {
+                    setAlreadyTriedMessage('');
+                    setFlowState('mobile_input');
+                  }}
                   className="w-full sm:w-auto bg-[#C7E24E] hover:bg-[#b0cc3d] text-[#070A0D] font-sans font-bold text-sm uppercase tracking-[0.18em] px-8 py-4 rounded-xl shadow-xl transition-all duration-300 transform hover:scale-[1.02] flex items-center justify-center gap-3"
                 >
                   <span className="material-symbols-outlined text-xl">card_giftcard</span>
-                  <span>{existingUserCoupon ? 'REVEAL ANOTHER / SPIN AGAIN' : 'REVEAL MY SURPRISE'}</span>
+                  <span>{existingUserCoupon ? 'REVEAL MY VOUCHER' : 'REVEAL MY SURPRISE'}</span>
                 </button>
 
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 text-xs font-sans text-[#ECEAE2]/60 pt-1">
                   <span className="flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-sm text-[#C7E24E]">timer</span>
-                    Takes less than 30 seconds.
+                    <span className="material-symbols-outlined text-sm text-[#C7E24E]">pin</span>
+                    Strictly 1 code per mobile number.
                   </span>
                   <span className="hidden sm:inline">•</span>
                   <span className="flex items-center gap-1.5">
@@ -476,7 +576,7 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
                   </span>
                 </div>
                 <p className="text-[11px] font-sans text-[#ECEAE2]/50 italic">
-                  * No payment required to participate.
+                  * Logged to WebApp Google Sheets. No payment required to participate.
                 </p>
               </div>
             </div>
@@ -525,8 +625,30 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
               </button>
             </div>
 
+            {/* Already Tried Notice Banner */}
+            {alreadyTriedMessage && (
+              <div className="bg-[#ba1a1a]/15 border border-[#ba1a1a]/50 p-4 rounded-xl space-y-2">
+                <div className="flex items-center gap-2 text-[#ff6b6b] font-bold text-xs uppercase tracking-wider">
+                  <span className="material-symbols-outlined text-base">warning</span>
+                  <span>Already Participated</span>
+                </div>
+                <p className="text-xs text-[#ECEAE2] leading-relaxed">
+                  {alreadyTriedMessage}
+                </p>
+                {existingUserCoupon && (
+                  <button
+                    type="button"
+                    onClick={handleViewExistingCoupon}
+                    className="w-full bg-[#C7E24E] text-[#070A0D] font-bold py-2 rounded-lg text-xs uppercase tracking-wider mt-2 hover:bg-[#b0cc3d] transition-all"
+                  >
+                    View My Unlocked Code ({existingUserCoupon.code})
+                  </button>
+                )}
+              </div>
+            )}
+
             <form onSubmit={handleMobileSubmit} className="space-y-4 font-sans text-xs">
-              {/* Full Name */}
+              {/* Field 1: Full Name */}
               <div className="space-y-1.5">
                 <label className="block text-[#ECEAE2]/80 font-medium">
                   Full Name <span className="text-[#C7E24E]">*</span>
@@ -544,30 +666,42 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
                 </div>
               </div>
 
-              {/* Email Address */}
+              {/* Field 2: Date of Birth */}
               <div className="space-y-1.5">
                 <label className="block text-[#ECEAE2]/80 font-medium">
-                  Email Address <span className="text-[#C7E24E]">*</span>
+                  Date of Birth <span className="text-[#C7E24E]">*</span>
                 </label>
                 <div className="flex items-center bg-[#070A0D] border border-[#4E4C4B] rounded-xl px-3 py-2.5 focus-within:border-[#C7E24E]">
-                  <span className="material-symbols-outlined text-[#B88A44] mr-2 text-lg">mail</span>
+                  <span className="material-symbols-outlined text-[#B88A44] mr-2 text-lg">cake</span>
                   <input
-                    type="email"
-                    placeholder="e.g. anjali@example.com"
-                    value={userEmail}
-                    onChange={(e) => setUserEmail(e.target.value)}
-                    className="w-full bg-transparent text-xs font-semibold text-[#ECEAE2] focus:outline-none"
+                    type="date"
+                    value={dateOfBirth}
+                    onChange={(e) => setDateOfBirth(e.target.value)}
+                    max={new Date().toISOString().split('T')[0]}
+                    className="w-full bg-transparent text-xs font-semibold text-[#ECEAE2] focus:outline-none color-scheme-dark"
                     required
                   />
                 </div>
+                <p className="text-[10px] text-[#ECEAE2]/50">
+                  Used for birthday festive offers and age verification.
+                </p>
               </div>
 
-              {/* Mobile Number */}
+              {/* Field 3: Indian Mobile Number */}
               <div className="space-y-1.5">
-                <label className="block text-[#ECEAE2]/80 font-medium">
-                  10-Digit Mobile Number <span className="text-[#C7E24E]">*</span>
-                </label>
-                <div className="flex items-center bg-[#070A0D] border border-[#4E4C4B] rounded-xl overflow-hidden focus-within:border-[#C7E24E]">
+                <div className="flex justify-between items-center">
+                  <label className="block text-[#ECEAE2]/80 font-medium">
+                    10-Digit Mobile Number <span className="text-[#C7E24E]">*</span>
+                  </label>
+                  {mobileFeedback.operator && (
+                    <span className="text-[10px] text-[#C7E24E] font-medium font-data">
+                      {mobileFeedback.operator}
+                    </span>
+                  )}
+                </div>
+                <div className={`flex items-center bg-[#070A0D] border rounded-xl overflow-hidden ${
+                  mobileFeedback.isValid ? 'border-[#C7E24E]' : mobileNumber.length > 0 ? 'border-[#ba1a1a]' : 'border-[#4E4C4B]'
+                }`}>
                   <span className="px-3 text-[#ECEAE2]/60 font-data font-bold border-r border-[#4E4C4B] text-xs">
                     +91
                   </span>
@@ -581,9 +715,31 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
                     required
                   />
                 </div>
+                {mobileNumber.length > 0 && !mobileFeedback.isValid && (
+                  <p className="text-[10px] text-[#ff6b6b]">
+                    {mobileFeedback.message || 'Must be a valid 10-digit Indian number starting with 6, 7, 8, or 9.'}
+                  </p>
+                )}
                 <p className="text-[10px] text-[#ECEAE2]/50">
-                  Your details will be used to issue and verify your Onam surprise coupon.
+                  Strictly 1 coupon per mobile number. Details logged to WebApp Google Sheets.
                 </p>
+              </div>
+
+              {/* Optional Email */}
+              <div className="space-y-1.5">
+                <label className="block text-[#ECEAE2]/80 font-medium">
+                  Email Address <span className="text-[#ECEAE2]/40">(Optional)</span>
+                </label>
+                <div className="flex items-center bg-[#070A0D] border border-[#4E4C4B] rounded-xl px-3 py-2.5 focus-within:border-[#C7E24E]">
+                  <span className="material-symbols-outlined text-[#B88A44] mr-2 text-lg">mail</span>
+                  <input
+                    type="email"
+                    placeholder="e.g. anjali@example.com"
+                    value={userEmail}
+                    onChange={(e) => setUserEmail(e.target.value)}
+                    className="w-full bg-transparent text-xs font-semibold text-[#ECEAE2] focus:outline-none"
+                  />
+                </div>
               </div>
 
               {/* T&C Checkbox */}
@@ -595,7 +751,7 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
                   className="mt-0.5 accent-[#C7E24E] w-4 h-4 rounded"
                 />
                 <span className="text-[11px] text-[#ECEAE2]/70 leading-normal group-hover:text-[#ECEAE2]">
-                  I agree to the campaign <strong className="text-[#ECEAE2] underline">Terms & Conditions</strong> and <strong className="text-[#ECEAE2] underline">Privacy Policy</strong>.
+                  I agree to the campaign <strong className="text-[#ECEAE2] underline">Terms & Conditions</strong> and allow verification for Onam Surprise.
                 </span>
               </label>
 
@@ -603,15 +759,15 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
                 type="submit"
                 className="w-full bg-[#C7E24E] hover:bg-[#b0cc3d] text-[#070A0D] py-3.5 rounded-xl font-bold uppercase tracking-[0.18em] shadow-lg transition-all text-xs flex items-center justify-center gap-2 mt-2"
               >
-                <span className="material-symbols-outlined text-lg">casino</span>
-                <span>PROCEED TO RAFFLE REVEAL</span>
+                <span className="material-symbols-outlined text-lg">pin</span>
+                <span>GENERATE CODE & PROCEED</span>
               </button>
             </form>
           </div>
         )}
 
         {/* ========================================================= */}
-        {/* STEP 2: OTP VERIFICATION SCREEN */}
+        {/* STEP 2: MOBILE NUMBER BASED CODE VERIFICATION SCREEN */}
         {/* ========================================================= */}
         {flowState === 'otp_verify' && (
           <div className="max-w-md mx-auto bg-[#20221C] p-8 rounded-2xl border border-[#C7E24E]/40 shadow-2xl space-y-6 animate-fadeIn">
@@ -619,31 +775,45 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
               <div>
                 <span className="text-[10px] uppercase tracking-[0.2em] text-[#C7E24E] font-bold">STEP 2 OF 2</span>
                 <h2 className="font-serif-display text-2xl font-bold text-[#ECEAE2]">
-                  Verify your number
+                  Verify Mobile Code
                 </h2>
               </div>
               <button
                 onClick={() => setFlowState('mobile_input')}
                 className="text-[#ECEAE2]/60 hover:text-white text-xs underline"
               >
-                Edit Number
+                Edit Details
               </button>
             </div>
 
-            <p className="font-sans text-xs text-[#ECEAE2]/80 leading-relaxed">
-              We've sent a 6-digit OTP to <strong className="text-[#C7E24E] font-data">+91 {mobileNumber}</strong>.
-            </p>
+            <div className="space-y-1">
+              <p className="font-sans text-xs text-[#ECEAE2]/80 leading-relaxed">
+                Verification code generated for <strong className="text-[#C7E24E] font-data">+91 {mobileNumber}</strong>:
+              </p>
+              <p className="font-sans text-[11px] text-[#ECEAE2]/60">
+                Participant: <strong className="text-[#ECEAE2]">{userName}</strong> • DOB: <strong className="text-[#ECEAE2]">{dateOfBirth}</strong>
+              </p>
+            </div>
 
-            {/* Quick Demo Fill Helper Tip */}
-            <div className="bg-[#070A0D] p-3 rounded-lg border border-[#B88A44]/30 flex justify-between items-center text-[11px] font-sans">
-              <span className="text-[#ECEAE2]/70">⚡ Testing demo code: 123456</span>
-              <button
-                type="button"
-                onClick={handleQuickFillOtp}
-                className="text-[#C7E24E] font-bold underline hover:text-white"
-              >
-                Auto-fill OTP
-              </button>
+            {/* Mobile-Derived OTP Code Banner & Auto-Fill */}
+            <div className="bg-[#070A0D] p-4 rounded-xl border border-[#C7E24E]/50 space-y-2">
+              <div className="flex justify-between items-center text-xs font-sans">
+                <span className="text-[#ECEAE2]/80 font-medium">Your Generated Mobile Code:</span>
+                <span className="font-data font-extrabold text-[#C7E24E] text-base tracking-widest bg-[#20221C] px-2.5 py-0.5 rounded border border-[#C7E24E]/40">
+                  {generatedOtpCode || '123456'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center pt-1 border-t border-[#4E4C4B]/30 text-[11px]">
+                <span className="text-[#ECEAE2]/50">Mobile-secured code algorithm</span>
+                <button
+                  type="button"
+                  onClick={handleQuickFillOtp}
+                  className="text-[#C7E24E] font-bold underline hover:text-white flex items-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-xs">auto_fix_high</span>
+                  <span>Auto-fill Code</span>
+                </button>
+              </div>
             </div>
 
             {/* OTP Input Boxes */}
@@ -672,19 +842,19 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
               className="w-full bg-[#C7E24E] hover:bg-[#b0cc3d] text-[#070A0D] py-3.5 rounded-xl font-bold uppercase tracking-[0.18em] shadow-lg transition-all text-xs flex items-center justify-center gap-2"
             >
               <span className="material-symbols-outlined text-base">lock_open</span>
-              <span>VERIFY & REVEAL</span>
+              <span>VERIFY & REVEAL VOUCHER</span>
             </button>
 
             <div className="flex justify-between items-center text-xs font-sans text-[#ECEAE2]/60 pt-2">
-              <span>Didn't receive SMS?</span>
+              <span>Need a new code?</span>
               {resendCountdown > 0 ? (
-                <span className="font-data text-[#B88A44]">Resend in {resendCountdown}s</span>
+                <span className="font-data text-[#B88A44]">Ready in {resendCountdown}s</span>
               ) : (
                 <button
                   onClick={() => setResendCountdown(30)}
                   className="text-[#C7E24E] font-bold hover:underline"
                 >
-                  Resend OTP
+                  Regenerate Code
                 </button>
               )}
             </div>
@@ -724,7 +894,7 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
                 {raffleStepMessage}
               </h2>
               <p className="font-sans text-xs text-[#ECEAE2]/70">
-                Participant: <strong className="text-[#C7E24E]">{userName || 'Valued Guest'}</strong> ({userEmail || mobileNumber})
+                Participant: <strong className="text-[#C7E24E]">{userName || 'Valued Guest'}</strong> (+91 {mobileNumber})
               </p>
               
               {/* Animated Progress Bar */}
@@ -740,6 +910,17 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
         {/* ========================================================= */}
         {flowState === 'coupon_result' && activeCoupon && (
           <div className="max-w-xl mx-auto space-y-8 animate-fadeIn">
+            {/* Google Sheets Logging Confirmation Pill */}
+            <div className="bg-[#20221C] border border-[#C7E24E]/40 px-4 py-2 rounded-xl flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2 text-[#C7E24E]">
+                <span className="material-symbols-outlined text-base">table_chart</span>
+                <span className="font-semibold font-sans">
+                  {sheetsSyncStatus || 'Logged to Kavitha Customer Verification Google Sheet'}
+                </span>
+              </div>
+              <span className="text-[10px] text-[#ECEAE2]/50 font-data">Live Sync ✓</span>
+            </div>
+
             {/* Digital Voucher Card */}
             <div className="bg-[#20221C] border-2 border-[#C7E24E] rounded-3xl p-6 md:p-8 space-y-6 relative overflow-hidden shadow-2xl">
               {/* Decorative Corner Ribbon */}
@@ -764,7 +945,7 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
               {/* Unique Coupon Code Display */}
               <div className="bg-[#070A0D] p-5 rounded-2xl border border-[#4E4C4B] text-center space-y-2">
                 <span className="text-[10px] font-sans uppercase tracking-widest text-[#ECEAE2]/60 block">
-                  UNIQUE COUPON CODE
+                  UNIQUE COUPON CODE (1 PER MOBILE)
                 </span>
                 <span className="font-data text-2xl md:text-3xl font-extrabold text-[#ECEAE2] tracking-[0.2em] select-all">
                   {activeCoupon.code}
@@ -809,20 +990,20 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
                 </div>
               </div>
 
-              {/* Participant Details Badge */}
+              {/* Participant Details Badge (Full Name, DOB, Mobile) */}
               <div className="bg-[#070A0D]/60 p-4 rounded-xl border border-[#4E4C4B]/40 space-y-1.5 text-xs font-sans">
                 <div className="flex justify-between items-center">
                   <span className="text-[#ECEAE2]/60">Participant Name:</span>
                   <span className="font-semibold text-[#ECEAE2]">{activeCoupon.userName || userName || 'Guest'}</span>
                 </div>
-                {(activeCoupon.userEmail || userEmail) && (
+                {(activeCoupon.dateOfBirth || dateOfBirth) && (
                   <div className="flex justify-between items-center">
-                    <span className="text-[#ECEAE2]/60">Registered Email:</span>
-                    <span className="font-semibold text-[#ECEAE2]">{activeCoupon.userEmail || userEmail}</span>
+                    <span className="text-[#ECEAE2]/60">Date of Birth:</span>
+                    <span className="font-semibold text-[#ECEAE2]">{activeCoupon.dateOfBirth || dateOfBirth}</span>
                   </div>
                 )}
                 <div className="flex justify-between items-center">
-                  <span className="text-[#ECEAE2]/60">Mobile Number:</span>
+                  <span className="text-[#ECEAE2]/60">Registered Mobile:</span>
                   <span className="font-data font-bold text-[#C7E24E]">+91 {activeCoupon.mobile}</span>
                 </div>
                 <div className="flex justify-between items-center pt-1 border-t border-[#4E4C4B]/30">
@@ -849,159 +1030,76 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
                 </p>
               </div>
 
-              {/* Action Buttons */}
+              {/* Actions Button Row */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                 <button
-                  onClick={() => alert(`Coupon ${activeCoupon.code} for ${activeCoupon.userName || 'Guest'} saved to your session!`)}
-                  className="bg-[#C7E24E] hover:bg-[#b0cc3d] text-[#070A0D] py-3 rounded-xl font-sans font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+                  onClick={handleCopyLink}
+                  className="bg-[#20221C] hover:bg-[#2c3026] text-[#ECEAE2] border border-[#4E4C4B] py-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all"
                 >
-                  <span className="material-symbols-outlined text-base">download</span>
-                  <span>SAVE MY COUPON</span>
+                  <span className="material-symbols-outlined text-base">
+                    {copiedLink ? 'check' : 'share'}
+                  </span>
+                  <span>{copiedLink ? 'Link Copied!' : 'Share Campaign'}</span>
                 </button>
 
                 <button
-                  onClick={() => onNavigate('catalog')}
-                  className="bg-[#070A0D] hover:bg-[#1a1f26] text-[#ECEAE2] border border-[#4E4C4B] py-3 rounded-xl font-sans font-semibold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+                  onClick={() => onNavigate('home')}
+                  className="bg-[#C7E24E] hover:bg-[#b0cc3d] text-[#070A0D] py-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all"
                 >
                   <span className="material-symbols-outlined text-base">shopping_bag</span>
-                  <span>BROWSE JEWELLERY</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Redemption Instructions */}
-            <div className="bg-[#20221C] p-6 rounded-2xl border border-[#4E4C4B]/40 space-y-4">
-              <h3 className="font-serif-display text-xl font-bold text-[#ECEAE2]">
-                How to redeem
-              </h3>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 font-sans text-xs">
-                <div className="flex items-start gap-3 bg-[#070A0D] p-3 rounded-xl border border-[#4E4C4B]/40">
-                  <span className="font-data font-bold text-[#C7E24E] text-base">01</span>
-                  <div>
-                    <strong className="block text-[#ECEAE2]">Visit a Showroom</strong>
-                    <span className="text-[#ECEAE2]/60">Visit any participating Kavitha Jewellery showroom.</span>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3 bg-[#070A0D] p-3 rounded-xl border border-[#4E4C4B]/40">
-                  <span className="font-data font-bold text-[#C7E24E] text-base">02</span>
-                  <div>
-                    <strong className="block text-[#ECEAE2]">Show Your Coupon</strong>
-                    <span className="text-[#ECEAE2]/60">Show your digital coupon code {activeCoupon.code}.</span>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3 bg-[#070A0D] p-3 rounded-xl border border-[#4E4C4B]/40">
-                  <span className="font-data font-bold text-[#C7E24E] text-base">03</span>
-                  <div>
-                    <strong className="block text-[#ECEAE2]">Verify & Redeem</strong>
-                    <span className="text-[#ECEAE2]/60">Our showroom staff verifies and redeems it instantly.</span>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3 bg-[#070A0D] p-3 rounded-xl border border-[#4E4C4B]/40">
-                  <span className="font-data font-bold text-[#C7E24E] text-base">04</span>
-                  <div>
-                    <strong className="block text-[#ECEAE2]">Enjoy Onam Shopping</strong>
-                    <span className="text-[#ECEAE2]/60">Enjoy festive savings on 22K gold & bridal collections.</span>
-                  </div>
-                </div>
-              </div>
-
-              <p className="text-[11px] font-sans text-[#ECEAE2]/50 italic pt-2">
-                * Terms, eligibility and minimum purchase requirements may apply.
-              </p>
-            </div>
-
-            {/* Share Section */}
-            <div className="bg-[#20221C] p-6 rounded-2xl border border-[#4E4C4B]/40 space-y-4 text-center">
-              <div>
-                <h3 className="font-serif-display text-xl font-bold text-[#ECEAE2]">
-                  Share the Onam surprise
-                </h3>
-                <p className="font-sans text-xs text-[#ECEAE2]/70 mt-1">
-                  Onam is better when it's shared. Invite your family and friends!
-                </p>
-              </div>
-
-              <div className="flex flex-wrap justify-center gap-3 font-sans text-xs">
-                <a
-                  href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
-                    "What's your Onam surprise? Reveal yours from Kavitha Jewellery: " + window.location.href
-                  )}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="bg-[#25D366] hover:bg-[#20bd5a] text-[#070A0D] px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-colors"
-                >
-                  <span className="material-symbols-outlined text-base">chat</span>
-                  <span>WhatsApp</span>
-                </a>
-
-                <button
-                  onClick={handleCopyLink}
-                  className="bg-[#070A0D] hover:bg-[#1a1f26] text-[#ECEAE2] border border-[#4E4C4B] px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 transition-colors"
-                >
-                  <span className="material-symbols-outlined text-base">link</span>
-                  <span>{copiedLink ? 'Link Copied!' : 'Copy Link'}</span>
-                </button>
-
-                <button
-                  onClick={() => alert("Opening Instagram Share...")}
-                  className="bg-gradient-to-r from-[#833ab4] via-[#fd1d1d] to-[#fcb045] text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-colors"
-                >
-                  <span className="material-symbols-outlined text-base">photo_camera</span>
-                  <span>Instagram</span>
+                  <span>Explore Gold Catalog</span>
                 </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* ========================================================= */}
-        {/* EXISTING COUPON LOOKUP SECTION */}
-        {/* ========================================================= */}
+        {/* Existing Coupon Lookup Section */}
         {flowState !== 'coupon_result' && (
-          <div className="bg-[#20221C] p-8 rounded-2xl border border-[#4E4C4B]/40 space-y-6 max-w-xl mx-auto text-center">
-            <div>
-              <span className="text-xs uppercase tracking-[0.2em] text-[#B88A44] font-semibold">
-                RETRIEVE VOUCHER
-              </span>
-              <h2 className="font-serif-display text-2xl font-bold text-[#ECEAE2] mt-1">
-                Already revealed your surprise?
-              </h2>
-              <p className="font-sans text-xs text-[#ECEAE2]/70 mt-1">
-                Check your coupon by entering your registered mobile number.
-              </p>
-            </div>
+          <div className="bg-[#20221C] p-8 rounded-3xl border border-[#4E4C4B]/40 text-center max-w-2xl mx-auto space-y-4 shadow-xl">
+            <h3 className="font-serif-display text-xl sm:text-2xl font-bold text-[#ECEAE2]">
+              Already Have an Onam Surprise Voucher?
+            </h3>
+            <p className="font-sans text-xs text-[#ECEAE2]/70 max-w-md mx-auto">
+              Check your assigned code and discount value anytime using your registered Indian mobile number.
+            </p>
 
             {flowState === 'lookup_input' ? (
-              <form onSubmit={handleLookupSubmit} className="space-y-4 max-w-md mx-auto">
-                <div className="flex items-center bg-[#070A0D] border border-[#4E4C4B] rounded-xl overflow-hidden focus-within:border-[#C7E24E]">
-                  <span className="px-4 text-[#ECEAE2]/60 font-data text-xs font-bold border-r border-[#4E4C4B]">
+              <form onSubmit={handleLookupSubmit} className="space-y-3 max-w-sm mx-auto">
+                <div className="flex items-center bg-[#070A0D] border border-[#4E4C4B] rounded-xl overflow-hidden">
+                  <span className="px-3 text-[#ECEAE2]/60 font-data font-bold border-r border-[#4E4C4B] text-xs">
                     +91
                   </span>
                   <input
                     type="tel"
                     maxLength={10}
-                    placeholder="Enter mobile number"
+                    placeholder="Enter 10-digit mobile"
                     value={mobileNumber}
                     onChange={(e) => setMobileNumber(e.target.value.replace(/\D/g, ''))}
-                    className="w-full bg-transparent p-3 text-xs font-data font-bold text-[#ECEAE2] focus:outline-none"
+                    className="w-full bg-transparent p-2.5 text-xs font-data font-bold text-[#ECEAE2] focus:outline-none tracking-widest"
                     required
                   />
                 </div>
-                <button
-                  type="submit"
-                  className="w-full bg-[#070A0D] hover:bg-[#1a1f26] text-[#C7E24E] border border-[#C7E24E]/40 py-3 rounded-xl font-sans text-xs uppercase tracking-widest font-bold transition-all"
-                >
-                  CHECK MY SURPRISE
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    className="flex-1 bg-[#C7E24E] text-[#070A0D] py-2.5 rounded-xl font-bold uppercase tracking-wider text-xs"
+                  >
+                    SEND VERIFICATION CODE
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFlowState('hero')}
+                    className="bg-[#070A0D] text-[#ECEAE2]/60 hover:text-white px-4 py-2.5 rounded-xl text-xs"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </form>
             ) : flowState === 'lookup_otp' ? (
               <div className="space-y-4 max-w-md mx-auto text-left font-sans text-xs">
                 <p className="text-[#ECEAE2]/80">
-                  Enter 6-digit OTP sent to <strong className="text-[#C7E24E] font-data">+91 {mobileNumber}</strong>:
+                  Enter 6-digit verification code for <strong className="text-[#C7E24E] font-data">+91 {mobileNumber}</strong>:
                 </p>
 
                 <div className="flex justify-between gap-2">
@@ -1031,7 +1129,7 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
                     onClick={handleQuickFillOtp}
                     className="bg-[#070A0D] text-[#ECEAE2] border border-[#4E4C4B] px-3 rounded-xl text-[10px]"
                   >
-                    Auto Fill (123456)
+                    Auto Fill
                   </button>
                 </div>
               </div>

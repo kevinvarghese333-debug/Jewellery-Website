@@ -49,8 +49,9 @@ googleProvider.setCustomParameters({
 });
 
 // Initialize Firestore with custom databaseId if configured
-export const db = firebaseConfigJson.firestoreDatabaseId 
-  ? getFirestore(app, firebaseConfigJson.firestoreDatabaseId)
+const configWithCustomDb = firebaseConfigJson as typeof firebaseConfigJson & { firestoreDatabaseId?: string };
+export const db = configWithCustomDb.firestoreDatabaseId 
+  ? getFirestore(app, configWithCustomDb.firestoreDatabaseId)
   : getFirestore(app);
 
 export {

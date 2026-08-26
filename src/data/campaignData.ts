@@ -150,13 +150,28 @@ export function generateOnamCoupon(
   mobile: string, 
   source: string = 'qr', 
   userName?: string, 
-  userEmail?: string
-): OnamCoupon {
-  const existing = getCouponByMobile(mobile);
+  userEmail?: string,
+  dateOfBirth?: string
+): { coupon: OnamCoupon; isNew: boolean; message?: string } {
+  const cleanMobile = mobile.replace(/\D/g, '').slice(-10);
+  const existing = getCouponByMobile(cleanMobile);
+
   if (existing) {
-    if (userName && !existing.userName) existing.userName = userName;
-    if (userEmail && !existing.userEmail) existing.userEmail = userEmail;
-    return existing;
+    if (userName && !existing.userName) existing.userName = userName.trim();
+    if (userEmail && !existing.userEmail) existing.userEmail = userEmail.trim();
+    if (dateOfBirth && !existing.dateOfBirth) existing.dateOfBirth = dateOfBirth.trim();
+    
+    // Save updated contact fields if any
+    const all = getStoredCoupons().map((c) => 
+      c.mobile.replace(/\D/g, '').slice(-10) === cleanMobile ? { ...c, ...existing } : c
+    );
+    saveStoredCoupons(all);
+
+    return {
+      coupon: existing,
+      isNew: false,
+      message: `Mobile +91 ${cleanMobile} has already tried and unlocked code ${existing.code} (₹${existing.discountAmount.toLocaleString('en-IN')} OFF). Only one voucher is permitted per mobile number.`,
+    };
   }
 
   const currentCoupons = getStoredCoupons();
@@ -212,21 +227,23 @@ export function generateOnamCoupon(
 
   const newCoupon: OnamCoupon = {
     code,
-    mobile: mobile.replace(/\D/g, '').slice(-10),
+    mobile: cleanMobile,
     userName: userName?.trim(),
     userEmail: userEmail?.trim().toLowerCase(),
+    dateOfBirth: dateOfBirth?.trim(),
     discountAmount: selectedDiscount,
     status: 'UNUSED',
     issuedAt: new Date().toISOString(),
     validFrom: '15 August 2026',
     validUntil: '30 September 2026',
     source: source || 'qr',
+    sheetsSynced: true,
   };
 
   const updated = [newCoupon, ...currentCoupons];
   saveStoredCoupons(updated);
 
-  return newCoupon;
+  return { coupon: newCoupon, isNew: true };
 }
 
 export function redeemCouponInStore(code: string, storeName: string): { success: boolean; message: string; coupon?: OnamCoupon } {

@@ -1,12 +1,11 @@
 {
-  "projectId": "main-ellipse-d6shk",
-  "appId": "1:201533070359:web:977fec2b9ed0179504d052",
-  "apiKey": "AIzaSyCASDzrP4jqLSivww8N69A6URlubo2fTaI",
-  "authDomain": "main-ellipse-d6shk.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-kavithajewellery-693bd515-4df9-47c5-a45a-1984b1e7191d",
-  "storageBucket": "main-ellipse-d6shk.firebasestorage.app",
-  "messagingSenderId": "201533070359",
+  "projectId": "gen-lang-client-0707914256",
+  "appId": "1:163728558061:web:2eba3896987850ef8249e4",
+  "apiKey": "AIzaSyCLsf7OQq53qM5e1o4oTbK_GpT9Xqf4p7E",
+  "authDomain": "gen-lang-client-0707914256.firebaseapp.com",
+  "storageBucket": "gen-lang-client-0707914256.firebasestorage.app",
+  "messagingSenderId": "163728558061",
   "measurementId": "",
-  "oAuthClientId": "201533070359-9r7b6bo7acsguve47eb13hd0s23iva33.apps.googleusercontent.com",
+  "oAuthClientId": "163728558061-2gsiosfkdbeiqd711svgse3klab4i964.apps.googleusercontent.com",
   "recaptchaSiteKey": ""
 }

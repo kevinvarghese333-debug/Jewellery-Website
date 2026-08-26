@@ -182,7 +182,7 @@ export const AdminCampaignView: React.FC<AdminCampaignViewProps> = ({
       return;
     }
 
-    const created = generateOnamCoupon(cleanPhone, manualSource, manualName || 'VIP Customer');
+    const { coupon: created } = generateOnamCoupon(cleanPhone, manualSource, manualName || 'VIP Customer');
     
     // Override value if customized
     const currentAll = getStoredCoupons();
@@ -201,11 +201,12 @@ export const AdminCampaignView: React.FC<AdminCampaignViewProps> = ({
 
   // Export Customer CSV
   const handleExportCSV = () => {
-    const headers = ['Coupon Code', 'Name', 'Mobile', 'Email', 'Discount Value (INR)', 'Status', 'Source', 'Issued At', 'Redeemed At', 'Redeemed Store'];
+    const headers = ['Coupon Code', 'Name', 'Mobile', 'Date of Birth', 'Email', 'Discount Value (INR)', 'Status', 'Source', 'Issued At', 'Redeemed At', 'Redeemed Store'];
     const rows = coupons.map(c => [
       `"${c.code}"`,
       `"${c.userName || ''}"`,
       `"${c.mobile}"`,
+      `"${c.dateOfBirth || ''}"`,
       `"${c.userEmail || ''}"`,
       c.discountAmount,
       `"${c.status}"`,
@@ -976,7 +977,7 @@ export const AdminCampaignView: React.FC<AdminCampaignViewProps> = ({
                 <tr>
                   <th className="p-3">Coupon Code</th>
                   <th className="p-3">Participant Name</th>
-                  <th className="p-3">Email & Contact</th>
+                  <th className="p-3">Mobile & DOB</th>
                   <th className="p-3">Discount Value</th>
                   <th className="p-3">Source</th>
                   <th className="p-3">Status</th>
@@ -996,8 +997,11 @@ export const AdminCampaignView: React.FC<AdminCampaignViewProps> = ({
                       <td className="p-3 font-data font-bold text-[#C7E24E]">{c.code}</td>
                       <td className="p-3 font-semibold text-[#ECEAE2]">{c.userName || '—'}</td>
                       <td className="p-3 text-[11px]">
-                        <span className="font-data text-[#ECEAE2] block">+91 {c.mobile}</span>
-                        {c.userEmail && <span className="text-[#ECEAE2]/60 block text-[10px]">{c.userEmail}</span>}
+                        <span className="font-data text-[#ECEAE2] font-semibold block">+91 {c.mobile}</span>
+                        {c.dateOfBirth && (
+                          <span className="text-[#B88A44] block text-[10px] font-medium">DOB: {c.dateOfBirth}</span>
+                        )}
+                        {c.userEmail && <span className="text-[#ECEAE2]/50 block text-[10px]">{c.userEmail}</span>}
                       </td>
                       <td className="p-3 font-serif-display font-bold text-[#ECEAE2]">
                         ₹{c.discountAmount.toLocaleString()}
