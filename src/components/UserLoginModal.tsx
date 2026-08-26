@@ -51,7 +51,11 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
   const [phoneStep, setPhoneStep] = useState<'mobile' | 'otp'>('mobile');
   const [phoneMobile, setPhoneMobile] = useState('');
   const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
-  const [resendTimer, setResendTimer] = useState(30);
+  const [resendTimer, setResendTimer] = useState(0);
+  const [lastOtpRequestedMobile, setLastOtpRequestedMobile] = useState('');
+  const [phoneMobileTouched, setPhoneMobileTouched] = useState(false);
+  const [phoneMobileError, setPhoneMobileError] = useState('');
+  const [phoneOtpError, setPhoneOtpError] = useState('');
 
   // User data states
   const [userCoupon, setUserCoupon] = useState<OnamCoupon | null>(null);
@@ -88,14 +92,14 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
     }
   };
 
-  // OTP Timer countdown
+  // OTP Timer countdown (continues running even if user switches back to mobile step)
   useEffect(() => {
     let interval: any;
-    if (phoneStep === 'otp' && resendTimer > 0) {
-      interval = setInterval(() => setResendTimer((prev) => prev - 1), 1000);
+    if (resendTimer > 0) {
+      interval = setInterval(() => setResendTimer((prev) => Math.max(0, prev - 1)), 1000);
     }
     return () => clearInterval(interval);
-  }, [phoneStep, resendTimer]);
+  }, [resendTimer]);
 
   if (!isOpen) return null;
 
@@ -206,22 +210,56 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
   // Phone OTP Submission
   const handlePhoneSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    setPhoneMobileTouched(true);
     const clean = phoneMobile.replace(/\D/g, '');
-    if (clean.length < 10) {
-      setAuthError('Please enter a valid 10-digit mobile number.');
+    
+    if (!clean) {
+      setPhoneMobileError('Please enter your 10-digit mobile number.');
       return;
     }
+    if (!/^[6-9]/.test(clean)) {
+      setPhoneMobileError('Indian mobile numbers must start with 6, 7, 8, or 9.');
+      return;
+    }
+    if (clean.length < 10) {
+      setPhoneMobileError(`Please enter a complete 10-digit mobile number (${clean.length}/10 entered).`);
+      return;
+    }
+
+    // Check if OTP was already requested for this exact number during cooldown
+    if (lastOtpRequestedMobile === clean && resendTimer > 0) {
+      setPhoneMobileError(`An OTP has already been requested for this number. Please wait ${resendTimer}s before requesting a new code, or proceed to verify the code already sent.`);
+      return;
+    }
+
+    setPhoneMobileError('');
     setAuthError('');
+    setPhoneOtpError('');
+    setLastOtpRequestedMobile(clean);
     setPhoneStep('otp');
     setResendTimer(30);
     setOtpDigits(['', '', '', '', '', '']);
     await sendDltSmsOtp(clean, '123456');
   };
 
+  const handleResendOtp = async () => {
+    if (resendTimer > 0) return;
+    const clean = phoneMobile.replace(/\D/g, '').slice(-10);
+    if (!clean || clean.length < 10 || !/^[6-9]/.test(clean)) {
+      setPhoneOtpError('Invalid mobile number. Please go back and re-enter your number.');
+      return;
+    }
+    setPhoneOtpError('');
+    setAuthError('');
+    setResendTimer(30);
+    setLastOtpRequestedMobile(clean);
+    await sendDltSmsOtp(clean, '123456');
+  };
+
   const handlePhoneVerifyOtp = () => {
     const code = otpDigits.join('');
     if (code.length < 6) {
-      setAuthError('Please enter all 6 digits.');
+      setPhoneOtpError('Please enter all 6 digits of the OTP code.');
       return;
     }
 
@@ -240,6 +278,8 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
     setCurrentUser(profile);
     setUserCoupon(existingCoupon || null);
     setPhoneStep('mobile');
+    setPhoneOtpError('');
+    setPhoneMobileError('');
     onUserChange?.(profile);
     loadOrders(profile);
   };
@@ -813,14 +853,31 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div className="space-y-1">
-                      <label className="block text-xs font-bold text-[#370617]">Mobile Number</label>
+                      <div className="flex justify-between items-center">
+                        <label className="block text-xs font-bold text-[#370617]">Mobile Number</label>
+                        {mobile && (
+                          <span className={`text-[10px] font-bold ${
+                            mobile.length === 10 && /^[6-9]/.test(mobile)
+                              ? 'text-[#1F7A52]'
+                              : 'text-red-600'
+                          }`}>
+                            {mobile.length === 10 && /^[6-9]/.test(mobile) ? '✓ Valid' : `${mobile.length}/10`}
+                          </span>
+                        )}
+                      </div>
                       <input
                         type="tel"
                         maxLength={10}
                         placeholder="10-digit mobile"
                         value={mobile}
-                        onChange={(e) => setMobile(e.target.value.replace(/\D/g, ''))}
-                        className="w-full bg-white border border-[#d7c1c4] rounded-xl px-3 py-2 text-xs font-semibold text-[#370617] focus:border-[#370617] focus:outline-none shadow-sm"
+                        onChange={(e) => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                        className={`w-full bg-white border rounded-xl px-3 py-2 text-xs font-semibold text-[#370617] shadow-sm transition-all focus:outline-none ${
+                          mobile && (!/^[6-9]/.test(mobile) || mobile.length < 10)
+                            ? 'border-red-400 ring-2 ring-red-400/20 focus:ring-2 focus:ring-red-500 focus:border-red-500'
+                            : mobile.length === 10
+                            ? 'border-[#1F7A52] ring-1 ring-[#1F7A52]/20 focus:ring-2 focus:ring-[#1F7A52] focus:border-[#1F7A52]'
+                            : 'border-[#d7c1c4] focus:border-[#370617] focus:ring-2 focus:ring-[#370617]/20'
+                        }`}
                       />
                     </div>
                     <div className="space-y-1">
@@ -830,7 +887,7 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
                         placeholder="e.g. Cherai, Kochi"
                         value={city}
                         onChange={(e) => setCity(e.target.value)}
-                        className="w-full bg-white border border-[#d7c1c4] rounded-xl px-3 py-2 text-xs font-semibold text-[#370617] focus:border-[#370617] focus:outline-none shadow-sm"
+                        className="w-full bg-white border border-[#d7c1c4] rounded-xl px-3 py-2 text-xs font-semibold text-[#370617] focus:border-[#370617] focus:ring-2 focus:ring-[#370617]/20 focus:outline-none shadow-sm transition-all"
                       />
                     </div>
                   </div>
@@ -853,46 +910,195 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
               )}
 
               {/* Form 3: Phone OTP Login */}
-              {authMode === 'phone' && (
-                phoneStep === 'mobile' ? (
-                  <form onSubmit={handlePhoneSendOtp} className="space-y-3 pt-1">
+              {authMode === 'phone' && (() => {
+                const cleanPhone = phoneMobile.replace(/\D/g, '');
+                const isPhoneComplete = cleanPhone.length === 10;
+                const isPhoneStartingValid = cleanPhone.length === 0 || /^[6-9]/.test(cleanPhone);
+                const isPhoneValid = isPhoneComplete && /^[6-9]/.test(cleanPhone);
+                const isAlreadyRequested = lastOtpRequestedMobile === cleanPhone && resendTimer > 0;
+                const hasMobileError = (phoneMobileTouched && cleanPhone.length > 0 && !isPhoneValid) || (phoneMobileTouched && cleanPhone.length === 0) || !!phoneMobileError;
+
+                return phoneStep === 'mobile' ? (
+                  <form onSubmit={handlePhoneSendOtp} className="space-y-3.5 pt-1">
                     <p className="text-xs text-[#524346] leading-relaxed">
-                      Enter your mobile number to receive a 6-digit BSNL DLT verification code to sync your active coupons and orders.
+                      Enter your 10-digit mobile number to receive a secure BSNL DLT verification code to sync your active coupons and orders.
                     </p>
+
                     <div className="space-y-1">
-                      <label className="block text-xs font-bold text-[#370617]">Mobile Number</label>
-                      <div className="flex items-center bg-white border border-[#d7c1c4] rounded-xl overflow-hidden focus-within:border-[#370617]">
-                        <span className="px-3 text-[#524346] font-bold text-xs bg-[#f2e5e6] border-r border-[#d7c1c4] py-2.5">
+                      <div className="flex justify-between items-center">
+                        <label className="block text-xs font-bold text-[#370617]">Mobile Number *</label>
+                        <span className="text-[10px] font-data font-semibold text-[#847375]">
+                          {cleanPhone.length > 0 ? `${cleanPhone.length}/10 Digits` : '10 Digits required'}
+                        </span>
+                      </div>
+
+                      {/* Mobile Input with Dynamic Focus Rings and Validation States */}
+                      <div
+                        className={`flex items-center rounded-xl overflow-hidden shadow-xs transition-all duration-200 border ${
+                          hasMobileError && !isAlreadyRequested
+                            ? 'border-red-500 ring-2 ring-red-500/20 bg-red-50/15 focus-within:ring-2 focus-within:ring-red-500 focus-within:border-red-500'
+                            : isAlreadyRequested
+                            ? 'border-[#B88A44] ring-2 ring-[#B88A44]/25 bg-[#fffbf2] focus-within:ring-2 focus-within:ring-[#B88A44] focus-within:border-[#B88A44]'
+                            : isPhoneValid
+                            ? 'border-[#1F7A52] ring-2 ring-[#1F7A52]/20 bg-[#F4F9F6] focus-within:ring-2 focus-within:ring-[#1F7A52] focus-within:border-[#1F7A52]'
+                            : 'border-[#d7c1c4] bg-white focus-within:border-[#370617] focus-within:ring-2 focus-within:ring-[#370617]/20'
+                        }`}
+                      >
+                        <span
+                          className={`px-3 font-bold text-xs border-r py-2.5 transition-colors ${
+                            hasMobileError && !isAlreadyRequested
+                              ? 'bg-red-100/50 text-red-800 border-red-300'
+                              : isAlreadyRequested
+                              ? 'bg-[#B88A44]/15 text-[#370617] border-[#B88A44]/30 font-data'
+                              : isPhoneValid
+                              ? 'bg-[#1F7A52]/10 text-[#1F7A52] border-[#1F7A52]/30'
+                              : 'bg-[#f2e5e6] text-[#524346] border-[#d7c1c4]'
+                          }`}
+                        >
                           +91
                         </span>
                         <input
                           type="tel"
                           maxLength={10}
-                          placeholder="10-digit number"
+                          placeholder="e.g. 9847012345"
                           value={phoneMobile}
-                          onChange={(e) => setPhoneMobile(e.target.value.replace(/\D/g, ''))}
-                          className="w-full px-3 py-2.5 text-xs font-bold font-data text-[#370617] focus:outline-none"
+                          onFocus={() => setPhoneMobileTouched(true)}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                            setPhoneMobile(val);
+                            setPhoneMobileTouched(true);
+                            if (val.length > 0 && !/^[6-9]/.test(val)) {
+                              setPhoneMobileError('Indian mobile numbers must start with 6, 7, 8, or 9.');
+                            } else if (val.length > 0 && val.length < 10) {
+                              setPhoneMobileError(`Please enter a complete 10-digit number (${val.length}/10 entered).`);
+                            } else {
+                              setPhoneMobileError('');
+                            }
+                          }}
+                          className="w-full px-3 py-2.5 text-xs font-bold font-data text-[#370617] focus:outline-none bg-transparent"
                           required
                           autoFocus
                         />
+                        {/* Status Icon */}
+                        <div className="pr-3 flex items-center">
+                          {isAlreadyRequested ? (
+                            <span className="material-symbols-outlined text-base text-[#B88A44] animate-pulse" title="OTP Cooldown Active">
+                              timer
+                            </span>
+                          ) : isPhoneValid ? (
+                            <span className="material-symbols-outlined text-base text-[#1F7A52]">
+                              check_circle
+                            </span>
+                          ) : hasMobileError ? (
+                            <span className="material-symbols-outlined text-base text-red-500">
+                              error
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
+
+                      {/* Inline Error Feedback */}
+                      {hasMobileError && !isAlreadyRequested && (
+                        <div className="flex items-start gap-1.5 text-xs text-red-600 font-medium mt-1.5 animate-fadeIn">
+                          <span className="material-symbols-outlined text-sm shrink-0 mt-0.5">error</span>
+                          <span>
+                            {phoneMobileError || (cleanPhone.length === 0 ? 'Mobile number is required.' : 'Please enter a valid 10-digit number starting with 6, 7, 8, or 9.')}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Inline Valid Feedback */}
+                      {isPhoneValid && !isAlreadyRequested && !phoneMobileError && (
+                        <div className="flex items-center justify-between text-[11px] text-[#1F7A52] font-semibold mt-1.5 animate-fadeIn">
+                          <span className="flex items-center gap-1">
+                            <span className="material-symbols-outlined text-sm">verified</span>
+                            <span>Valid Indian Mobile • Ready to send SMS</span>
+                          </span>
+                          <span className="font-data font-bold text-[10px] text-[#1F7A52] bg-[#1F7A52]/10 px-2 py-0.5 rounded">
+                            BSNL DLT ROUTE
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Explicit Visual Feedback for Already Requested OTP */}
+                      {isAlreadyRequested && (
+                        <div className="mt-2.5 p-3.5 bg-[#FFF9EE] border border-[#B88A44]/50 rounded-2xl space-y-2 text-xs animate-fadeIn shadow-xs">
+                          <div className="flex items-start gap-2.5">
+                            <div className="w-8 h-8 rounded-xl bg-[#B88A44]/15 flex items-center justify-center shrink-0 mt-0.5 text-[#B88A44] border border-[#B88A44]/30">
+                              <span className="material-symbols-outlined text-base animate-spin">timelapse</span>
+                            </div>
+                            <div className="space-y-1 flex-1">
+                              <div className="flex items-center justify-between gap-2">
+                                <h5 className="font-bold text-[#370617] text-xs">OTP Already Requested</h5>
+                                <span className="font-data font-bold text-[10px] text-[#B88A44] bg-[#B88A44]/15 border border-[#B88A44]/30 px-2 py-0.5 rounded-full">
+                                  Wait {resendTimer}s
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-[#524346] leading-relaxed">
+                                A verification code has already been dispatched to <strong className="font-data text-[#370617] font-bold">+91 {cleanPhone}</strong>. To prevent duplicate SMS requests, you cannot request a new OTP until the cooldown expires.
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-2 border-t border-[#B88A44]/25">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPhoneStep('otp');
+                                setPhoneOtpError('');
+                              }}
+                              className="text-xs font-bold text-[#370617] hover:text-[#B88A44] flex items-center gap-1 underline decoration-2 underline-offset-2 transition-colors"
+                            >
+                              <span>Enter the received code now</span>
+                              <span className="material-symbols-outlined text-xs">arrow_forward</span>
+                            </button>
+                            <span className="text-[10px] text-[#847375] font-data">
+                              Code valid for 10 mins
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
-                    <button
-                      type="submit"
-                      className="w-full bg-[#370617] hover:bg-[#521b2b] text-[#FAF6F0] py-3 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow-md transition-all"
-                    >
-                      <span>Send OTP Code</span>
-                      <span className="material-symbols-outlined text-sm">send</span>
-                    </button>
+                    {/* Action Button */}
+                    {isAlreadyRequested ? (
+                      <button
+                        type="button"
+                        disabled={true}
+                        className="w-full bg-[#d7c1c4]/70 text-[#847375] cursor-not-allowed py-3 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all border border-[#d7c1c4]"
+                        title={`Please wait ${resendTimer}s before requesting a new OTP`}
+                      >
+                        <span className="material-symbols-outlined text-sm animate-spin">hourglass_bottom</span>
+                        <span>OTP Dispatched • Wait {resendTimer}s to Request Again</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="submit"
+                        disabled={loading || (phoneMobileTouched && !isPhoneValid)}
+                        className={`w-full py-3 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow-md transition-all ${
+                          phoneMobileTouched && !isPhoneValid
+                            ? 'bg-[#d7c1c4] text-[#847375] cursor-not-allowed'
+                            : 'bg-[#370617] hover:bg-[#521b2b] text-[#FAF6F0]'
+                        }`}
+                      >
+                        <span>Send OTP Code</span>
+                        <span className="material-symbols-outlined text-sm">send</span>
+                      </button>
+                    )}
                   </form>
                 ) : (
                   <div className="space-y-4 pt-1">
                     <div className="flex justify-between items-center text-xs">
-                      <span className="text-[#524346]">OTP sent to <strong>+91 {phoneMobile}</strong></span>
+                      <div className="flex items-center gap-1.5 text-[#524346]">
+                        <span className="material-symbols-outlined text-sm text-[#1F7A52]">mark_chat_read</span>
+                        <span>OTP sent to <strong className="font-data text-[#370617]">+91 {phoneMobile}</strong></span>
+                      </div>
                       <button
-                        onClick={() => setPhoneStep('mobile')}
-                        className="text-[#B88A44] font-bold underline hover:text-[#370617]"
+                        onClick={() => {
+                          setPhoneStep('mobile');
+                          setPhoneOtpError('');
+                        }}
+                        className="text-[#B88A44] font-bold underline hover:text-[#370617] transition-colors"
                       >
                         Change
                       </button>
@@ -903,36 +1109,82 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
                       <span className="text-[#524346]">⚡ Test Code: 123456</span>
                       <button
                         type="button"
-                        onClick={() => setOtpDigits(['1', '2', '3', '4', '5', '6'])}
+                        onClick={() => {
+                          setOtpDigits(['1', '2', '3', '4', '5', '6']);
+                          setPhoneOtpError('');
+                        }}
                         className="text-[#B88A44] font-bold underline hover:text-[#370617]"
                       >
                         Auto-fill
                       </button>
                     </div>
 
-                    <div className="flex justify-between gap-1.5">
-                      {otpDigits.map((digit, idx) => (
-                        <input
-                          key={idx}
-                          id={`firebase-modal-otp-${idx}`}
-                          type="text"
-                          inputMode="numeric"
-                          maxLength={1}
-                          value={digit}
-                          onChange={(e) => {
-                            let val = e.target.value;
-                            if (val.length > 1) val = val.slice(-1);
-                            const updated = [...otpDigits];
-                            updated[idx] = val;
-                            setOtpDigits(updated);
-                            if (val && idx < 5) {
-                              const next = document.getElementById(`firebase-modal-otp-${idx + 1}`);
-                              if (next) next.focus();
-                            }
-                          }}
-                          className="w-10 h-12 text-center bg-white border border-[#d7c1c4] rounded-xl font-data text-lg font-bold text-[#370617] focus:border-[#370617] focus:outline-none shadow-sm"
-                        />
-                      ))}
+                    {/* 6 Digit OTP Inputs with Focus Rings */}
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between gap-1.5">
+                        {otpDigits.map((digit, idx) => (
+                          <input
+                            key={idx}
+                            id={`firebase-modal-otp-${idx}`}
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={1}
+                            value={digit}
+                            onChange={(e) => {
+                              let val = e.target.value.replace(/\D/g, '');
+                              if (val.length > 1) val = val.slice(-1);
+                              const updated = [...otpDigits];
+                              updated[idx] = val;
+                              setOtpDigits(updated);
+                              setPhoneOtpError('');
+                              if (val && idx < 5) {
+                                const next = document.getElementById(`firebase-modal-otp-${idx + 1}`);
+                                if (next) next.focus();
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Backspace' && !digit && idx > 0) {
+                                const prev = document.getElementById(`firebase-modal-otp-${idx - 1}`);
+                                if (prev) prev.focus();
+                              }
+                            }}
+                            className={`w-10 h-12 text-center bg-white border rounded-xl font-data text-lg font-bold text-[#370617] shadow-sm transition-all focus:outline-none ${
+                              phoneOtpError
+                                ? 'border-red-400 ring-2 ring-red-400/20 focus:border-red-500 focus:ring-2 focus:ring-red-500'
+                                : digit
+                                ? 'border-[#370617] ring-1 ring-[#370617]/20 focus:border-[#370617] focus:ring-2 focus:ring-[#370617]'
+                                : 'border-[#d7c1c4] focus:border-[#370617] focus:ring-2 focus:ring-[#370617]/20'
+                            }`}
+                          />
+                        ))}
+                      </div>
+
+                      {phoneOtpError && (
+                        <div className="flex items-center gap-1.5 text-xs text-red-600 font-medium mt-1 animate-fadeIn">
+                          <span className="material-symbols-outlined text-sm shrink-0">error</span>
+                          <span>{phoneOtpError}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Resend OTP Bar */}
+                    <div className="flex items-center justify-between text-xs pt-1 border-t border-[#d7c1c4]">
+                      <span className="text-[#847375]">Didn't receive the SMS?</span>
+                      {resendTimer > 0 ? (
+                        <span className="text-xs font-bold text-[#847375] flex items-center gap-1 bg-[#FAF6F0] px-2.5 py-1 rounded-lg border border-[#d7c1c4]">
+                          <span className="material-symbols-outlined text-xs animate-spin">timelapse</span>
+                          <span>Resend in {resendTimer}s</span>
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleResendOtp}
+                          className="text-xs font-bold text-[#370617] hover:text-[#B88A44] underline flex items-center gap-1 transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-xs">replay</span>
+                          <span>Resend OTP</span>
+                        </button>
+                      )}
                     </div>
 
                     <button
@@ -944,8 +1196,8 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
                       <span>Verify & Access Account</span>
                     </button>
                   </div>
-                )
-              )}
+                );
+              })()}
 
             </div>
           )}
