@@ -124,6 +124,7 @@ export interface UserProfile {
   name: string;
   email: string;
   mobile: string;
+  dateOfBirth?: string;
   city?: string;
   photoURL?: string;
   authProvider?: 'google' | 'password' | 'phone' | 'guest';

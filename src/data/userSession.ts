@@ -20,13 +20,19 @@ export function getStoredUserProfile(): UserProfile | null {
 export function saveUserProfile(profile: Partial<UserProfile>): UserProfile {
   const existing = getStoredUserProfile();
   const updated: UserProfile = {
+    uid: profile.uid || existing?.uid,
     name: profile.name || existing?.name || '',
     email: profile.email || existing?.email || '',
     mobile: profile.mobile || existing?.mobile || '',
+    dateOfBirth: profile.dateOfBirth || existing?.dateOfBirth,
     city: profile.city || existing?.city || 'Kerala',
+    photoURL: profile.photoURL || existing?.photoURL,
+    authProvider: profile.authProvider || existing?.authProvider || 'password',
     isLoggedIn: true,
     loyaltyPoints: profile.loyaltyPoints ?? existing?.loyaltyPoints ?? 3955,
     lastLoginAt: new Date().toISOString(),
+    createdAt: profile.createdAt || existing?.createdAt,
+    savedWishlistCount: profile.savedWishlistCount ?? existing?.savedWishlistCount ?? 0,
   };
 
   try {

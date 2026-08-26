@@ -43,6 +43,7 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [mobile, setMobile] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState('');
   const [city, setCity] = useState('');
   const [authError, setAuthError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -191,7 +192,7 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
     setLoading(true);
     setAuthError('');
     try {
-      const profile = await registerWithEmail(email, password, name, mobile, city);
+      const profile = await registerWithEmail(email, password, name, mobile, city, dateOfBirth);
       setCurrentUser(profile);
       onUserChange?.(profile);
       await loadOrders(profile);
@@ -270,6 +271,7 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
       name: existingCoupon?.userName || `Kavitha Patron (${clean.slice(-4)})`,
       email: existingCoupon?.userEmail || `${clean}@kavitha-patron.in`,
       mobile: clean,
+      dateOfBirth: existingCoupon?.dateOfBirth,
       isLoggedIn: true,
       authProvider: 'phone',
       loyaltyPoints: 3955,
@@ -374,6 +376,12 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
                       <p className="text-[11px] text-[#847375] flex items-center gap-1">
                         <span className="material-symbols-outlined text-xs">location_on</span>
                         {currentUser.city}
+                      </p>
+                    )}
+                    {(currentUser.dateOfBirth || userCoupon?.dateOfBirth) && (
+                      <p className="text-[11px] text-[#847375] flex items-center gap-1">
+                        <span className="material-symbols-outlined text-xs text-[#B88A44]">cake</span>
+                        <span>DOB: {currentUser.dateOfBirth || userCoupon?.dateOfBirth}</span>
                       </p>
                     )}
                   </div>
@@ -880,16 +888,36 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
                         }`}
                       />
                     </div>
+                    
+                    {/* Native HTML5 Date Picker for Date of Birth */}
                     <div className="space-y-1">
-                      <label className="block text-xs font-bold text-[#370617]">City / State</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Cherai, Kochi"
-                        value={city}
-                        onChange={(e) => setCity(e.target.value)}
-                        className="w-full bg-white border border-[#d7c1c4] rounded-xl px-3 py-2 text-xs font-semibold text-[#370617] focus:border-[#370617] focus:ring-2 focus:ring-[#370617]/20 focus:outline-none shadow-sm transition-all"
-                      />
+                      <div className="flex justify-between items-center">
+                        <label className="block text-xs font-bold text-[#370617]">Date of Birth</label>
+                        <span className="text-[10px] text-[#847375] font-medium">Birthday Perks</span>
+                      </div>
+                      <div className="flex items-center bg-white border border-[#d7c1c4] rounded-xl px-3 py-2 text-xs font-semibold text-[#370617] shadow-sm transition-all focus-within:border-[#370617] focus-within:ring-2 focus-within:ring-[#370617]/20">
+                        <span className="material-symbols-outlined text-sm text-[#B88A44] mr-2 shrink-0">cake</span>
+                        <input
+                          type="date"
+                          value={dateOfBirth}
+                          max={new Date().toISOString().split('T')[0]}
+                          min="1920-01-01"
+                          onChange={(e) => setDateOfBirth(e.target.value)}
+                          className="w-full bg-transparent text-xs font-semibold text-[#370617] focus:outline-none cursor-pointer"
+                        />
+                      </div>
                     </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-xs font-bold text-[#370617]">City / State</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Cherai, Kochi"
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      className="w-full bg-white border border-[#d7c1c4] rounded-xl px-3 py-2 text-xs font-semibold text-[#370617] focus:border-[#370617] focus:ring-2 focus:ring-[#370617]/20 focus:outline-none shadow-sm transition-all"
+                    />
                   </div>
 
                   <button

@@ -50,6 +50,7 @@ export async function syncUserProfileFromFirestore(firebaseUser: User): Promise<
     name: profileData.name || firebaseUser.displayName || (firebaseUser.email ? firebaseUser.email.split('@')[0] : 'Kavitha Patron'),
     email: firebaseUser.email || profileData.email || '',
     mobile: profileData.mobile || firebaseUser.phoneNumber || '',
+    dateOfBirth: profileData.dateOfBirth || undefined,
     city: profileData.city || 'Kerala, India',
     photoURL: firebaseUser.photoURL || profileData.photoURL || undefined,
     authProvider: isGoogleProvider ? 'google' : 'password',
@@ -119,7 +120,8 @@ export async function registerWithEmail(
   pass: string, 
   name: string, 
   mobile: string, 
-  city?: string
+  city?: string,
+  dateOfBirth?: string
 ): Promise<UserProfile> {
   const result = await createUserWithEmailAndPassword(auth, email.trim(), pass);
   
@@ -137,6 +139,7 @@ export async function registerWithEmail(
     name: name.trim() || 'Kavitha Patron',
     email: email.trim(),
     mobile: mobile.trim(),
+    dateOfBirth: dateOfBirth?.trim() || undefined,
     city: city?.trim() || 'Kerala, India',
     authProvider: 'password',
     isLoggedIn: true,
