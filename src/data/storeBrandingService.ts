@@ -27,7 +27,7 @@ const CONFIG_DOC_PATH = 'app_config';
 const BRANDING_DOC_ID = 'branding';
 
 export const DEFAULT_BRANDING: StoreBrandingConfig = {
-  logoUrl: '/logo.png',
+  logoUrl: '/logo.svg',
   logoAltText: 'Kavitha Jewellery Logo',
   heroImageUrl: ASSET_IMAGES.hero,
   heroFallbackUrl: ASSET_IMAGES.heroFallback,
@@ -39,6 +39,45 @@ export const DEFAULT_BRANDING: StoreBrandingConfig = {
   brandTagline: 'EST. 1992 • CHERAI, KERALA • 916 BIS',
 };
 
+const sanitizeBranding = (config: Partial<StoreBrandingConfig>): StoreBrandingConfig => {
+  const result: StoreBrandingConfig = { ...DEFAULT_BRANDING, ...config };
+  
+  // If logo is unset or points to broken legacy local files, enforce permanent official SVG emblem
+  if (
+    !result.logoUrl ||
+    result.logoUrl === '/logo.png' ||
+    result.logoUrl === '/kavitha-logo.jpg' ||
+    result.logoUrl === '/logo.jpg' ||
+    result.logoUrl.trim() === ''
+  ) {
+    result.logoUrl = DEFAULT_BRANDING.logoUrl;
+  }
+
+  // If hero image is unset or points to broken legacy local paths, enforce permanent high-res campaign hero
+  if (
+    !result.heroImageUrl ||
+    result.heroImageUrl === '/hero-banner-composed.jpg' ||
+    result.heroImageUrl === '/hero.jpg' ||
+    result.heroImageUrl === '/hero-model.jpg' ||
+    result.heroImageUrl === '/hero-portrait.jpg' ||
+    result.heroImageUrl === '/hero-traditional.jpg' ||
+    result.heroImageUrl === '/hero-traditional-cropped.jpg' ||
+    result.heroImageUrl.trim() === ''
+  ) {
+    result.heroImageUrl = DEFAULT_BRANDING.heroImageUrl;
+  }
+
+  if (
+    !result.heroFallbackUrl ||
+    result.heroFallbackUrl.startsWith('/hero') ||
+    result.heroFallbackUrl.trim() === ''
+  ) {
+    result.heroFallbackUrl = DEFAULT_BRANDING.heroFallbackUrl;
+  }
+
+  return result;
+};
+
 /**
  * Get initial cached branding configuration from localStorage or default
  */
@@ -48,7 +87,12 @@ export const getLocalCachedBranding = (): StoreBrandingConfig => {
       const saved = localStorage.getItem('kavitha_store_branding');
       if (saved) {
         const parsed = JSON.parse(saved);
-        return { ...DEFAULT_BRANDING, ...parsed };
+        const sanitized = sanitizeBranding(parsed);
+        // Persist sanitized version back so it is permanent
+        if (sanitized.logoUrl !== parsed.logoUrl || sanitized.heroImageUrl !== parsed.heroImageUrl) {
+          localStorage.setItem('kavitha_store_branding', JSON.stringify(sanitized));
+        }
+        return sanitized;
       }
     } catch (e) {
       console.error('Error loading cached branding:', e);
@@ -160,10 +204,7 @@ export const subscribeToStoreBranding = (
       (snapshot) => {
         if (snapshot.exists()) {
           const data = snapshot.data() as StoreBrandingConfig;
-          const merged: StoreBrandingConfig = {
-            ...DEFAULT_BRANDING,
-            ...data,
-          };
+          const merged = sanitizeBranding(data);
           saveLocalBranding(merged);
           onUpdate(merged);
         } else {

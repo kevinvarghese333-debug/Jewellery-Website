@@ -255,19 +255,15 @@ export const AdminBrandingManager: React.FC = () => {
 
   // Hero presets list
   const heroPresets = [
-    { name: 'Composed Heritage Bridal Banner', url: '/hero-banner-composed.jpg' },
-    { name: 'Kerala Temple Bridal Photography', url: '/hero-traditional-cropped.jpg' },
-    { name: 'High-Resolution Bridal Atelier (Original)', url: '/ADH04463 JPEG Lq.jpg' },
-    { name: 'Classic Gold Jewellery Showcase', url: '/hero.jpg' },
+    { name: 'Heirloom South Indian Gold Bridal Campaign', url: ASSET_IMAGES.hero },
+    { name: 'Royal Heritage Haarams & Chokers Atelier', url: ASSET_IMAGES.necklacesCategory },
+    { name: 'Temple Antique Masterpiece Showcase', url: ASSET_IMAGES.heroTraditional },
     { name: 'Full Kerala Bridal Trousseau', url: ASSET_IMAGES.bridalCategory },
   ];
 
   // Logo presets list
   const logoPresets = [
-    { name: 'Primary Authentic Crest (logo.png)', url: '/logo.png' },
-    { name: 'Traditional Gold Foil Crest (kavitha-logo.jpg)', url: '/kavitha-logo.jpg' },
-    { name: 'Vector SVG Monogram (logo.svg)', url: '/logo.svg' },
-    { name: 'High-Res Studio Logo (logo.jpg)', url: '/logo.jpg' },
+    { name: 'Official Vector Gold Emblem (logo.svg)', url: '/logo.svg' },
   ];
 
   // Blur preview class
@@ -638,7 +634,7 @@ export const AdminBrandingManager: React.FC = () => {
                       </span>
                       <div className="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center p-1 bg-white shadow-xs border border-[#B88A44]/20">
                         <img
-                          src={customLogoUrl || '/logo.png'}
+                          src={customLogoUrl || '/logo.svg'}
                           alt="Staged Preview"
                           className="w-full h-full object-contain"
                         />
@@ -656,7 +652,7 @@ export const AdminBrandingManager: React.FC = () => {
                       </span>
                       <div className="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center p-1 bg-[#FAF6F0] shadow-xs ring-1 ring-[#D4AF6A]">
                         <img
-                          src={customLogoUrl || '/logo.png'}
+                          src={customLogoUrl || '/logo.svg'}
                           alt="Staged Preview"
                           className="w-full h-full object-contain"
                         />

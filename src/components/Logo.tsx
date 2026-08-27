@@ -39,12 +39,10 @@ export const Logo: React.FC<LogoProps> = ({
 
   // Active logo source prioritizing Admin-configured logo
   const logoSources = [
-    branding?.logoUrl || '/logo.png',
-    '/logo.png',
-    '/kavitha-logo.jpg',
-    '/logo.jpg',
+    branding?.logoUrl || '/logo.svg',
+    '/logo.svg',
   ];
-  const activeLogoSrc = logoSources[fallbackIndex] || '/logo.png';
+  const activeLogoSrc = logoSources[fallbackIndex] || '/logo.svg';
 
   const handleImageError = () => {
     if (fallbackIndex < logoSources.length - 1) {
@@ -62,11 +60,12 @@ export const Logo: React.FC<LogoProps> = ({
       }`}
       style={{ width: currentSize.px, height: currentSize.px }}
     >
-      {!imgError ? (
+      {!imgError && activeLogoSrc && activeLogoSrc !== '/logo.png' && activeLogoSrc !== '/kavitha-logo.jpg' && activeLogoSrc !== '/logo.jpg' ? (
         <img
           src={activeLogoSrc}
           alt={branding?.logoAltText || "Kavitha Jewellery Logo"}
           className="w-full h-full object-contain drop-shadow-xs"
+          referrerPolicy="no-referrer"
           onError={handleImageError}
         />
       ) : (
@@ -76,19 +75,54 @@ export const Logo: React.FC<LogoProps> = ({
           viewBox="0 0 160 160"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
+          className="w-full h-full"
         >
           <defs>
             <linearGradient id="kjGoldShimmer" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#FFF8E1" />
+              <stop offset="0%" stopColor="#FFF7D6" />
+              <stop offset="25%" stopColor="#F5D77F" />
               <stop offset="50%" stopColor="#D4A843" />
+              <stop offset="75%" stopColor="#A87926" />
               <stop offset="100%" stopColor="#6E480F" />
             </linearGradient>
+            <linearGradient id="kjGoldHighlight" x1="100%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#FFFFFF" />
+              <stop offset="30%" stopColor="#FFE8A3" />
+              <stop offset="70%" stopColor="#C99832" />
+              <stop offset="100%" stopColor="#784E10" />
+            </linearGradient>
+            <radialGradient id="kjRubyGlow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#FF4D6D" />
+              <stop offset="60%" stopColor="#A4133C" />
+              <stop offset="100%" stopColor="#590D22" />
+            </radialGradient>
           </defs>
-          <circle cx="80" cy="80" r="70" stroke="url(#kjGoldShimmer)" strokeWidth="3" />
-          <path d="M52 48 L64 48 L64 112 L52 112 Z" fill="url(#kjGoldShimmer)" />
-          <path d="M64 80 L88 48 L102 48 L76 86 Z" fill="url(#kjGoldShimmer)" />
-          <path d="M72 84 L102 112 L88 112 L64 88 Z" fill="url(#kjGoldShimmer)" />
-          <path d="M98 48 L110 48 L110 98 C110 110 98 114 86 114 L86 102 C94 102 98 98 98 92 Z" fill="url(#kjGoldShimmer)" />
+          <g transform="translate(80, 80)">
+            {/* Outer Filigree Halo Ring */}
+            <circle cx="0" cy="0" r="70" stroke="url(#kjGoldShimmer)" strokeWidth="2.5" strokeDasharray="4 3" opacity="0.75" />
+            <circle cx="0" cy="0" r="64" stroke="url(#kjGoldHighlight)" strokeWidth="1.8" opacity="0.9" />
+
+            {/* 4 Cardinal Ornamental Lotus Beads */}
+            <circle cx="0" cy="-64" r="4" fill="url(#kjGoldHighlight)" />
+            <circle cx="64" cy="0" r="4" fill="url(#kjGoldHighlight)" />
+            <circle cx="0" cy="64" r="4" fill="url(#kjGoldHighlight)" />
+            <circle cx="-64" cy="0" r="4" fill="url(#kjGoldHighlight)" />
+
+            {/* Royal Crown & Temple Crest Pinnacles */}
+            <path d="M-36 -32 L-26 -14 L-12 -26 L0 -40 L12 -26 L26 -14 L36 -32 L28 -8 L-28 -8 Z" fill="url(#kjGoldHighlight)" />
+            
+            {/* Central Auspicious Ruby Stone */}
+            <polygon points="0,-36 5,-28 0,-20 -5,-28" fill="url(#kjRubyGlow)" stroke="url(#kjGoldHighlight)" strokeWidth="1" />
+
+            {/* Interlocking "K" & "J" Royal Monogram */}
+            <path d="M-28 -2 L-16 -2 L-16 44 L-28 44 Z" fill="url(#kjGoldShimmer)" />
+            <path d="M-16 18 L6 -2 L18 -2 L-6 24 Z" fill="url(#kjGoldHighlight)" />
+            <path d="M-8 21 L16 44 L4 44 L-16 26 Z" fill="url(#kjGoldShimmer)" />
+            <path d="M18 -2 L28 -2 L28 28 C28 40 18 46 4 46 C-2 46 -8 44 -12 40 L-7 32 C-4 34 0 36 4 36 C11 36 17 32 17 25 Z" fill="url(#kjGoldHighlight)" />
+
+            {/* Diamond Brilliant Sparkle Accent */}
+            <polygon points="0,6 5,14 0,22 -5,14" fill="#FFFFFF" opacity="0.95" />
+          </g>
         </svg>
       )}
     </div>

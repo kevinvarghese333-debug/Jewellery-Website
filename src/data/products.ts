@@ -95,7 +95,7 @@ export const CATEGORY_METAS: Record<string, CategoryMeta> = {
     subtitle: 'SOUTH INDIAN 22K 916 GOLD',
     tagline: 'Temple Kadas, Filigree Stacked Bangles & Modern Bracelets',
     description: 'Adorn your wrists with pure 22K gold bangles engineered for perfect comfort, laser-etched motifs, and durable daily and bridal wear.',
-    heroImage: '/products/bangle-stacked.jpg',
+    heroImage: 'https://images.unsplash.com/photo-1611591475827-0cf19232a93a?q=80&w=1200&auto=format&fit=crop',
     filterCategories: ['Bangles & Bracelets'],
   },
   bridal: {
@@ -358,7 +358,7 @@ export const PRODUCTS: Product[] = [
     size: 'Size 2-6 (Standard 2.4 - 2.8)',
     description: 'Set of 4 hand-engraved 22K yellow gold bangles featuring traditional floral motifs and polished edge highlights.',
     images: {
-      main: '/products/bangle-stacked.jpg',
+      main: 'https://images.unsplash.com/photo-1611591475827-0cf19232a93a?q=80&w=800&auto=format&fit=crop',
     },
     updatedTime: '10:30 AM',
     isBestseller: true,
@@ -374,7 +374,7 @@ export const PRODUCTS: Product[] = [
     size: 'Openable Kada (Size 2-6)',
     description: 'Regal single openable antique kada with lion-head finials, ruby eyes, and heavy textured solid gold construction.',
     images: {
-      main: '/products/bangle-kada.jpg',
+      main: 'https://images.unsplash.com/photo-1601121141461-9d6647bca1ed?q=80&w=800&auto=format&fit=crop',
     },
     updatedTime: '10:30 AM',
     isNewArrival: true,
@@ -390,7 +390,7 @@ export const PRODUCTS: Product[] = [
     size: 'Size 2-4 / 2-6 Available',
     description: 'A pair of delicate lace filigree 22K gold bangles engineered for durability, lightweight elegance, and comfortable daily wear.',
     images: {
-      main: '/products/bangle-filigree.jpg',
+      main: 'https://images.unsplash.com/photo-1611591475827-0cf19232a93a?q=80&w=800&auto=format&fit=crop',
     },
     updatedTime: '10:30 AM',
   },
@@ -405,7 +405,7 @@ export const PRODUCTS: Product[] = [
     size: 'Screw-lock Antique Bangle',
     description: 'Exquisite deep Nakshi embossed temple bangle depicting Goddess Lakshmi flanked by sacred elephants and floral vines.',
     images: {
-      main: '/products/bangle-nakshi.jpg',
+      main: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?q=80&w=800&auto=format&fit=crop',
     },
     updatedTime: '10:30 AM',
     isBestseller: true,
@@ -558,14 +558,14 @@ export const PRODUCTS: Product[] = [
 ];
 
 export const ASSET_IMAGES = {
-  hero: '/hero-banner-composed.jpg',
-  heroTraditional: '/hero-traditional-cropped.jpg',
-  heroPortrait: '/ADH04463 JPEG Lq.jpg',
-  heroFallback: '/hero-traditional.jpg',
+  hero: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDCFnIW7MpYWKLhk2eQbummGd6OlVGAfq5xXrQ_6nJSqyZYcHSQ4alS8i7EMOcreo91KZBwIObg6SnQ4MNybu7FQkT8JyKMrnr_ngfRhx8xeN3rjV9L7ALj_TgQzq7yS3S2OZfS5pxLFmvloMWq1voVfVvcx_Y9io82hyYYiMkKiE7c7boDOoMkQ-Ku7CoDWZfKGNnBxPfUBie8VIfbuGwh8iXipuSUX4FQzD76lw3UsKTRl-rsQqBH-w',
+  heroTraditional: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCmHYU8wUqinFDzeGt8ub6VQNZFfyqERj7KV2dfauJLf3tXTMZzR5_LLIybr8PjBevHxN5OSMYWEBa9wmkWe6IYA-Oj7arHwELxBeQIMPOhGyJlNvGjMYjCnrYwL-EhtW8WCVamxBLET_9qjmwbqXPCShF69W3LYKoRdnCBRzCNXHFskL8m22jVsfSVfFx7wKVkXokoMTr3u2RgeUFTBgroWOaFSxAEu3othqqDJBg8NkHgne3tQStBPQ',
+  heroPortrait: 'https://lh3.googleusercontent.com/aida-public/AB6AXuB2LD4EynmHUiSa2iUjBub5_4fJ3KqAuFeP9CWSHdy-Qs9S_ar9cztaP65r79HtvXEPnVvRdurPo40RPRANKfULXjcNybNbnVpd7lsBihe29RgiSQPNWvsLaeXjblhkcgzk6lrJAkpdy_sYkOlPiBXvG_83WL58r48PfPS7-SBRp7PrUkAPkCPs940lAy5fdw8NIZ3Qgske56yX9C60Bw1NKKgVABZ2e5-Zb6YJDQCY-SMxi68G2l0EUA',
+  heroFallback: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAJKWUVghuy30UPwFO2WMmEd7YHWo11egA-wFUjGbtU9F2d-uiWW7qCaJI817iU9zyBbfD4nUBA4MTaEpY7kFSNrK_F5u0ERRZ9Rx5nDr2nAmae3VVMomxkFaGPEZ5FWFRmV7kCIPeTPHXkFn3N7TFFoVk_THGBYml7q2gmn0avvovzBN3_OPh7bS9lGKAWAxsSgGHPpvj-lVsxfxOQ7gOUBnBoRAMbrm04yD81Ee4SG5nQjlwzoQWsLg',
   bridalCategory: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAJKWUVghuy30UPwFO2WMmEd7YHWo11egA-wFUjGbtU9F2d-uiWW7qCaJI817iU9zyBbfD4nUBA4MTaEpY7kFSNrK_F5u0ERRZ9Rx5nDr2nAmae3VVMomxkFaGPEZ5FWFRmV7kCIPeTPHXkFn3N7TFFoVk_THGBYml7q2gmn0avvovzBN3_OPh7bS9lGKAWAxsSgGHPpvj-lVsxfxOQ7gOUBnBoRAMbrm04yD81Ee4SG5nQjlwzoQWsLg',
   necklacesCategory: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDCFnIW7MpYWKLhk2eQbummGd6OlVGAfq5xXrQ_6nJSqyZYcHSQ4alS8i7EMOcreo91KZBwIObg6SnQ4MNybu7FQkT8JyKMrnr_ngfRhx8xeN3rjV9L7ALj_TgQzq7yS3S2OZfS5pxLFmvloMWq1voVfVvcx_Y9io82hyYYiMkKiE7c7boDOoMkQ-Ku7CoDWZfKGNnBxPfUBie8VIfbuGwh8iXipuSUX4FQzD76lw3UsKTRl-rsQqBH-w',
   earringsCategory: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCthD5TK07WFpSSHFY23CSficQ31bznnFKWy1gYQ-vvXirGH_k1vLxiwIeUgFDwd7sDSlI509FulAo1Qbm1cSvjD6a33n8rCCTTkKxXDk8BvAnLrzrLaJ9OSOITqYg6mgDmkoe5i13EOsgdG8pfO2O_0GApawNgRNNYNoWa3VxIJj9_pNQ0sZJ7u25DKvk-mBIWhsGtdCzhh_8UdeXrOis1Rq5Oqoxvd_cJwBlk7DiWfzWjk3_HUgrEsw',
-  banglesCategory: '/products/bangle-stacked.jpg',
+  banglesCategory: 'https://images.unsplash.com/photo-1611591475827-0cf19232a93a?q=80&w=800&auto=format&fit=crop',
   artisanHands: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBNLh46ypsmeAoMzqbRHxfVzqKXiAeT3DJmOIqv2MYbjEHqIg4_zywoaO7nIkOsB1ZMlDEf2zZGyntrBdH4YoP-vNzRrrNCycjKYuZO9t8zPzGWfEfQS8UeHn4Hqxb8HbshjdCUXd4knT0GdTcdYdzuH9fDsawxTXuqp25PWn-JH3zGVgrJUosytju5dWEbRNss654TC0tG0kWlMneNDQSIaz7roAjq9FFG2AHxSXWyOtf-plDFNuSQwg',
   goldTools: 'https://lh3.googleusercontent.com/aida-public/AB6AXuA5xjeuGAG7O6GSF7Ix97i_qssNf1AJcwumcsyVWfxXoZCxpkSzznUmXhu74PbRxXA9huoEbNv5OOrxb7VUch9J5tkYfqb7TX35Z-U_DJn9PwFJUNYPuQ3GOGbAC2BBEKC68l6ch94_veHJ2KBMq-03Ni1oLEZpzV1QxTJ2IN-SdChdap4cIKzbMcG3CxsQQbzKdSrnofOm0HohO1GrlwLp-OuyJbE-g7_9Ra05VhEfYlxC_xTG3D_eaQ',
 };

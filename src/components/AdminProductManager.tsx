@@ -18,13 +18,11 @@ const CATEGORIES: CategoryType[] = [
 ];
 
 const PRESET_SAMPLE_IMAGES: { label: string; url: string }[] = [
-  { label: 'Stacked Bangles', url: '/products/bangle-stacked.jpg' },
-  { label: 'Royal Kada', url: '/products/bangle-kada.jpg' },
-  { label: 'Filigree Bangles', url: '/products/bangle-filigree.jpg' },
-  { label: 'Nakshi Lakshmi Bangle', url: '/products/bangle-nakshi.jpg' },
-  { label: '18K Gold Bracelet', url: '/products/bracelet-gold.jpg' },
+  { label: 'Stacked Bangles', url: 'https://images.unsplash.com/photo-1611591475827-0cf19232a93a?q=80&w=800&auto=format&fit=crop' },
+  { label: 'Royal Kada', url: 'https://images.unsplash.com/photo-1601121141461-9d6647bca1ed?q=80&w=800&auto=format&fit=crop' },
   { label: 'Temple Jhumkas', url: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?q=80&w=800&auto=format&fit=crop' },
   { label: 'Heritage Choker', url: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?q=80&w=800&auto=format&fit=crop' },
+  { label: 'Bridal Haaram', url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDCFnIW7MpYWKLhk2eQbummGd6OlVGAfq5xXrQ_6nJSqyZYcHSQ4alS8i7EMOcreo91KZBwIObg6SnQ4MNybu7FQkT8JyKMrnr_ngfRhx8xeN3rjV9L7ALj_TgQzq7yS3S2OZfS5pxLFmvloMWq1voVfVvcx_Y9io82hyYYiMkKiE7c7boDOoMkQ-Ku7CoDWZfKGNnBxPfUBie8VIfbuGwh8iXipuSUX4FQzD76lw3UsKTRl-rsQqBH-w' },
 ];
 
 export const AdminProductManager: React.FC<AdminProductManagerProps> = ({ currentGoldRate }) => {
@@ -38,8 +36,8 @@ export const AdminProductManager: React.FC<AdminProductManagerProps> = ({ curren
   const [weightGrams, setWeightGrams] = useState<number>(18.5);
   const [size, setSize] = useState('Size 2-6 (Standard)');
   const [description, setDescription] = useState('');
-  const [imageUrl, setImageUrl] = useState('/products/bangle-stacked.jpg');
-  const [imagePreview, setImagePreview] = useState<string>('/products/bangle-stacked.jpg');
+  const [imageUrl, setImageUrl] = useState('https://images.unsplash.com/photo-1611591475827-0cf19232a93a?q=80&w=800&auto=format&fit=crop');
+  const [imagePreview, setImagePreview] = useState<string>('https://images.unsplash.com/photo-1611591475827-0cf19232a93a?q=80&w=800&auto=format&fit=crop');
   const [uploadSuccessNotice, setUploadSuccessNotice] = useState(false);
   const [filterPurity, setFilterPurity] = useState<string>('All');
   const [filterCategory, setFilterCategory] = useState<string>('All');
@@ -334,7 +332,7 @@ export const AdminProductManager: React.FC<AdminProductManagerProps> = ({ curren
                 alt="Upload preview"
                 className="w-full h-full object-cover"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = '/products/bangle-stacked.jpg';
+                  (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1611591475827-0cf19232a93a?q=80&w=800&auto=format&fit=crop';
                 }}
               />
               <div className="absolute top-2 left-2 bg-[#070A0D]/90 px-2 py-1 rounded text-[10px] font-bold text-[#C7E24E] border border-[#C7E24E]/40">
@@ -443,7 +441,7 @@ export const AdminProductManager: React.FC<AdminProductManagerProps> = ({ curren
                           alt={prod.name}
                           className="w-9 h-9 rounded object-cover border border-[#4E4C4B]"
                           onError={(e) => {
-                            (e.target as HTMLImageElement).src = '/products/bangle-stacked.jpg';
+                            (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1611591475827-0cf19232a93a?q=80&w=800&auto=format&fit=crop';
                           }}
                         />
                         <div>

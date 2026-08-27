@@ -78,17 +78,17 @@ export const HomeView: React.FC<HomeViewProps> = ({
         <div className="relative z-10 max-w-2xl px-6 sm:px-10 md:px-16 text-white space-y-6">
           <div className="inline-flex items-center gap-2 bg-[#B88A44]/25 backdrop-blur-md border border-[#D4AF6A]/50 px-3.5 py-1.5 rounded-full text-[#F5D77F] text-xs font-brand uppercase tracking-[0.2em] font-bold shadow-sm">
             <span className="text-[#F5D77F]">◆</span>
-            <span>EST. 1992 • CHERAI, KERALA</span>
+            <span>{branding?.brandTagline || 'EST. 1992 • CHERAI, KERALA'}</span>
           </div>
 
           <h1 className="font-serif-display text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold leading-[1.08] text-[#FAF6F0] tracking-tight">
-            Crafted for Today. <br />
-            <span className="italic font-normal text-[#F5D77F]">Cherished for Generations</span>
+            {branding?.heroHeadingLine1 || 'Crafted for Today.'} <br />
+            <span className="italic font-normal text-[#F5D77F]">{branding?.heroHeadingLine2 || 'Cherished for Generations'}</span>
           </h1>
 
           <div className="space-y-2">
             <p className="font-brand text-sm md:text-base text-[#FAF6F0] leading-relaxed max-w-xl font-medium">
-              Kerala's trusted destination for pure 22K 916 BIS Hallmarked gold, heirloom bridal Haarams, antique temple jewellery, and exquisite solitaire designs.
+              {branding?.heroSubtitle || "Kerala's trusted destination for pure 22K 916 BIS Hallmarked gold, heirloom bridal Haarams, antique temple jewellery, and exquisite solitaire designs."}
             </p>
             <p className="font-brand text-xs md:text-sm text-[#E2D8CE] leading-relaxed max-w-lg font-normal">
               Direct live bullion market rates with 100% transparent pricing, zero hidden deductions, and BIS HUID certification.
