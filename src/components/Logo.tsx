@@ -40,7 +40,9 @@ export const Logo: React.FC<LogoProps> = ({
   // Active logo source prioritizing Admin-configured logo
   const logoSources = [
     branding?.logoUrl || '/logo.svg',
+    '/kavitha_mark.svg',
     '/logo.svg',
+    '/kavitha_mark.png',
   ];
   const activeLogoSrc = logoSources[fallbackIndex] || '/logo.svg';
 
@@ -52,19 +54,19 @@ export const Logo: React.FC<LogoProps> = ({
     }
   };
 
-  // Authentic Brand Logo Image with luxury container
+  // Authentic Brand Logo Image with luxury container matching uploaded emblem
   const BrandLogoMark = (
     <div
-      className={`relative inline-flex items-center justify-center shrink-0 rounded-full transition-transform duration-300 group-hover:scale-105 select-none ${
-        isDark ? 'bg-[#FAF6F0] p-1 shadow-sm ring-1 ring-[#D4AF6A]/60' : 'bg-transparent'
+      className={`relative inline-flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-105 select-none ${
+        isDark ? 'drop-shadow-[0_2px_8px_rgba(245,215,127,0.3)]' : 'drop-shadow-xs'
       }`}
       style={{ width: currentSize.px, height: currentSize.px }}
     >
-      {!imgError && activeLogoSrc && activeLogoSrc !== '/logo.png' && activeLogoSrc !== '/kavitha-logo.jpg' && activeLogoSrc !== '/logo.jpg' ? (
+      {!imgError && activeLogoSrc ? (
         <img
           src={activeLogoSrc}
           alt={branding?.logoAltText || "Kavitha Jewellery Logo"}
-          className="w-full h-full object-contain drop-shadow-xs"
+          className="w-full h-full object-contain"
           referrerPolicy="no-referrer"
           onError={handleImageError}
         />
@@ -72,56 +74,31 @@ export const Logo: React.FC<LogoProps> = ({
         <svg
           width={currentSize.px}
           height={currentSize.px}
-          viewBox="0 0 160 160"
+          viewBox="0 0 1000 1100"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
-          className="w-full h-full"
+          className="w-full h-full object-contain"
         >
           <defs>
-            <linearGradient id="kjGoldShimmer" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#FFF7D6" />
-              <stop offset="25%" stopColor="#F5D77F" />
-              <stop offset="50%" stopColor="#D4A843" />
-              <stop offset="75%" stopColor="#A87926" />
-              <stop offset="100%" stopColor="#6E480F" />
+            <linearGradient id="kjMarkFallbackGold" x1="0%" y1="25%" x2="100%" y2="75%">
+              <stop offset="0%" stopColor="#9E773A" />
+              <stop offset="12%" stopColor="#BC934B" />
+              <stop offset="30%" stopColor="#DFC075" />
+              <stop offset="52%" stopColor="#F0D68F" />
+              <stop offset="72%" stopColor="#D7B266" />
+              <stop offset="88%" stopColor="#B68B42" />
+              <stop offset="100%" stopColor="#926B2D" />
             </linearGradient>
-            <linearGradient id="kjGoldHighlight" x1="100%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#FFFFFF" />
-              <stop offset="30%" stopColor="#FFE8A3" />
-              <stop offset="70%" stopColor="#C99832" />
-              <stop offset="100%" stopColor="#784E10" />
-            </linearGradient>
-            <radialGradient id="kjRubyGlow" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#FF4D6D" />
-              <stop offset="60%" stopColor="#A4133C" />
-              <stop offset="100%" stopColor="#590D22" />
-            </radialGradient>
           </defs>
-          <g transform="translate(80, 80)">
-            {/* Outer Filigree Halo Ring */}
-            <circle cx="0" cy="0" r="70" stroke="url(#kjGoldShimmer)" strokeWidth="2.5" strokeDasharray="4 3" opacity="0.75" />
-            <circle cx="0" cy="0" r="64" stroke="url(#kjGoldHighlight)" strokeWidth="1.8" opacity="0.9" />
+          <g fill="url(#kjMarkFallbackGold)">
+            {/* Shape 1: Left Wing with Arch */}
+            <path d="M 40 60 L 40 620 L 360 940 L 435 940 L 275 780 L 380 675 L 275 570 L 170 465 L 280 355 C 280 355, 360 210, 610 210 L 535 285 C 380 285, 335 410, 335 440 L 120 225 L 280 65 L 40 60 Z" />
 
-            {/* 4 Cardinal Ornamental Lotus Beads */}
-            <circle cx="0" cy="-64" r="4" fill="url(#kjGoldHighlight)" />
-            <circle cx="64" cy="0" r="4" fill="url(#kjGoldHighlight)" />
-            <circle cx="0" cy="64" r="4" fill="url(#kjGoldHighlight)" />
-            <circle cx="-64" cy="0" r="4" fill="url(#kjGoldHighlight)" />
+            {/* Shape 2: Center Diagonal Ribbon */}
+            <path d="M 610 210 L 275 545 L 340 610 L 675 275 Z" />
 
-            {/* Royal Crown & Temple Crest Pinnacles */}
-            <path d="M-36 -32 L-26 -14 L-12 -26 L0 -40 L12 -26 L26 -14 L36 -32 L28 -8 L-28 -8 Z" fill="url(#kjGoldHighlight)" />
-            
-            {/* Central Auspicious Ruby Stone */}
-            <polygon points="0,-36 5,-28 0,-20 -5,-28" fill="url(#kjRubyGlow)" stroke="url(#kjGoldHighlight)" strokeWidth="1" />
-
-            {/* Interlocking "K" & "J" Royal Monogram */}
-            <path d="M-28 -2 L-16 -2 L-16 44 L-28 44 Z" fill="url(#kjGoldShimmer)" />
-            <path d="M-16 18 L6 -2 L18 -2 L-6 24 Z" fill="url(#kjGoldHighlight)" />
-            <path d="M-8 21 L16 44 L4 44 L-16 26 Z" fill="url(#kjGoldShimmer)" />
-            <path d="M18 -2 L28 -2 L28 28 C28 40 18 46 4 46 C-2 46 -8 44 -12 40 L-7 32 C-4 34 0 36 4 36 C11 36 17 32 17 25 Z" fill="url(#kjGoldHighlight)" />
-
-            {/* Diamond Brilliant Sparkle Accent */}
-            <polygon points="0,6 5,14 0,22 -5,14" fill="#FFFFFF" opacity="0.95" />
+            {/* Shape 3: Lower Center V-Block and Right Wing */}
+            <path d="M 395 645 L 515 525 L 730 740 L 730 290 L 960 60 L 960 620 L 640 940 L 570 940 L 730 780 L 515 565 L 395 645 Z" />
           </g>
         </svg>
       )}
