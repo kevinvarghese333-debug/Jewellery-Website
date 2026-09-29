@@ -411,7 +411,7 @@ export const OnamCampaignView: React.FC<OnamCampaignViewProps> = ({ onNavigate }
       {/* Top Banner Navigation */}
       <div className="bg-[#20221C] border-b border-[#4E4C4B]/40 px-4 py-2.5 flex justify-between items-center text-xs">
         <div className="flex items-center gap-3">
-          <Logo variant="symbol" theme="dark" size="sm" />
+          <Logo variant="mark-only" theme="dark" size="sm" />
           <div className="flex items-center gap-2">
             <span className="font-medium tracking-wide">KAVITHA JEWELLERY • ONAM FESTIVE SURPRISE 2026</span>
             {sourceParam && (
