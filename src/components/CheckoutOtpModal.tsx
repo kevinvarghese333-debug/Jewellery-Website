@@ -290,7 +290,7 @@ export const CheckoutOtpModal: React.FC<CheckoutOtpModalProps> = ({
                 {otpDigits.map((digit, idx) => (
                   <input
                     key={idx}
-                    ref={(el) => (digitInputsRef.current[idx] = el)}
+                    ref={(el) => { digitInputsRef.current[idx] = el; }}
                     type="text"
                     inputMode="numeric"
                     maxLength={1}

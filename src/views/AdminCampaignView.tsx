@@ -58,6 +58,7 @@ export const AdminCampaignView: React.FC<AdminCampaignViewProps> = ({
   const [newGoldRate, setNewGoldRate] = useState<number>(goldRate);
   const [silverRate, setSilverRate] = useState<number>(98);
   const [rateUpdatedNotice, setRateUpdatedNotice] = useState<boolean>(false);
+  const [rateUpdateError, setRateUpdateError] = useState('');
   const [isUpdatingRate, setIsUpdatingRate] = useState<boolean>(false);
 
   // Sync state if gold rate is updated from cloud
@@ -172,6 +173,8 @@ export const AdminCampaignView: React.FC<AdminCampaignViewProps> = ({
     e.preventDefault();
     if (newGoldRate > 0) {
       setIsUpdatingRate(true);
+      setRateUpdatedNotice(false);
+      setRateUpdateError('');
       try {
         await updateLiveBullionRatesInFirestore(newGoldRate, silverRate);
         setGoldRate(newGoldRate);
@@ -179,9 +182,7 @@ export const AdminCampaignView: React.FC<AdminCampaignViewProps> = ({
         setTimeout(() => setRateUpdatedNotice(false), 5000);
       } catch (err) {
         console.error('Error updating live rate to cloud:', err);
-        setGoldRate(newGoldRate);
-        setRateUpdatedNotice(true);
-        setTimeout(() => setRateUpdatedNotice(false), 5000);
+        setRateUpdateError('The rate was not published. Check your connection and access, then try again.');
       } finally {
         setIsUpdatingRate(false);
       }
@@ -632,6 +633,7 @@ export const AdminCampaignView: React.FC<AdminCampaignViewProps> = ({
                     )}
                   </button>
 
+                  {rateUpdateError && <p role="alert" className="text-sm text-red-200">{rateUpdateError}</p>}
                   {rateUpdatedNotice && (
                     <div className="text-[11px] text-[#C7E24E] bg-[#C7E24E]/10 p-2.5 rounded-lg border border-[#C7E24E]/30 text-center font-bold space-y-0.5 animate-fadeIn">
                       <p>✓ 22K, 18K & 14K Gold rates updated in real-time!</p>

@@ -26,8 +26,7 @@ import {
 import { getStoredUserProfile } from './data/userSession';
 import { 
   subscribeToGoldRates, 
-  getLocalCachedGoldRate, 
-  updateLiveBullionRatesInFirestore 
+  getLocalCachedGoldRate
 } from './data/storeConfigService';
 
 function AppContent() {
@@ -40,15 +39,15 @@ function AppContent() {
       const params = new URLSearchParams(window.location.search);
 
       // Check /admin or #admin or ?view=admin or ?admin
-      if (path === '/admin' || hash === 'admin' || params.get('view') === 'admin' || params.has('admin')) {
+      if (path === '/admin' || ['admin', 'campaign-admin'].includes(hash) || params.get('view') === 'admin' || params.has('admin')) {
         return 'campaign-admin';
       }
       // Check /staff or #staff or ?view=staff
-      if (path === '/staff' || hash === 'staff' || params.get('view') === 'staff' || params.has('staff')) {
+      if (path === '/staff' || ['staff', 'staff-redemption'].includes(hash) || params.get('view') === 'staff' || params.has('staff')) {
         return 'staff-redemption';
       }
       // Check /onam or #onam or ?campaign or ?source
-      if (path === '/onam' || hash === 'onam' || params.get('source') || params.get('campaign') || params.get('view') === 'onam') {
+      if (path === '/onam' || ['onam', 'onam-campaign'].includes(hash) || params.get('source') || params.get('campaign') || params.get('view') === 'onam') {
         return 'onam-campaign';
       }
       // Check /earrings or /earring or #earrings or #earring
@@ -207,9 +206,7 @@ function AppContent() {
   const setGoldRate = (rate: number) => {
     const oldRate = goldRate;
     setGoldRateState(rate);
-    updateLiveBullionRatesInFirestore(rate).catch((e) => {
-      console.error('Firestore rate update error:', e);
-    });
+    // AdminCampaignView persists the rate before invoking this local UI callback.
     if (oldRate !== rate) {
       notifyGoldRateUpdate(rate, oldRate);
     }
@@ -446,7 +443,7 @@ function AppContent() {
             onToggleWishlist={handleToggleWishlist}
             isWishlisted={wishlistIds.includes(selectedProduct.id)}
             currentUser={currentUser}
-            onOpenAuthModal={handleOpenAuthModal}
+            onOpenAuthModal={(tab) => handleOpenAuthModal(tab === 'orders' ? 'orders' : 'profile')}
           />
         )}
 
